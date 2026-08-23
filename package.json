@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "deploy": "vite build --base=/nuer-xuexi/ && cp dist/index.html dist/404.html"
   },
   "dependencies": {
     "react": "^19.1.1",
