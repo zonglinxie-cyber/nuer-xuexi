@@ -1,0 +1,60 @@
+{
+  "version": "0.1.0",
+  "exportedAt": "2026-08-20T12:00:00.000Z",
+  "settings": {
+    "model": "gpt-4o-mini",
+    "baseUrl": "https://api.openai.com/v1"
+  },
+  "records": [
+    {
+      "id": "q_demo_clear",
+      "createdAt": "2026-08-20T10:00:00.000Z",
+      "questionText": "36 × 24 =",
+      "questionType": "计算题",
+      "knowledgePoint": "三位数乘两位数",
+      "knowledgePoints": ["三位数乘两位数"],
+      "judgement": "正确",
+      "savedAsWrong": false,
+      "parentConfirmed": true,
+      "imageDataUrl": ""
+    },
+    {
+      "id": "q_demo_student",
+      "createdAt": "2026-08-20T10:08:00.000Z",
+      "questionText": "125 × 32 =",
+      "questionType": "计算题",
+      "knowledgePoint": "三位数乘两位数",
+      "knowledgePoints": ["三位数乘两位数"],
+      "judgement": "错误",
+      "savedAsWrong": true,
+      "parentConfirmed": true,
+      "imageDataUrl": ""
+    }
+  ],
+  "wrongQuestions": [
+    {
+      "id": "q_demo_student",
+      "imageDataUrl": "",
+      "originalText": "125x32=",
+      "correctedText": "125 × 32 =",
+      "studentAnswer": "3750",
+      "correctAnswer": "4000",
+      "explanation": "这道题在考三位数乘两位数。先用 125 乘 2，再用 125 乘 30，最后把两次积加起来。",
+      "stepByStep": [
+        "先算 125 × 2 = 250",
+        "再算 125 × 30 = 3750",
+        "250 + 3750 = 4000"
+      ],
+      "knowledgePoint": "三位数乘两位数",
+      "knowledgePoints": ["三位数乘两位数"],
+      "textbookUnit": "第三单元 三位数乘两位数",
+      "errorCause": "计算错误",
+      "errorCauseNote": "只算了 125×30，漏加了 125×2",
+      "savedAt": "2026-08-20T10:10:00.000Z",
+      "reviewStatus": "未复习",
+      "lastReviewedAt": "",
+      "notes": "竖式计算时两个积都要写下来再相加",
+      "sourceRecordId": "q_demo_student"
+    }
+  ]
+}

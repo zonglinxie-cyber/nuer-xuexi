@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: light;
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  background: #f4f1e8;
+  color: #243026;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #f4f1e8;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+textarea {
+  resize: vertical;
+}
