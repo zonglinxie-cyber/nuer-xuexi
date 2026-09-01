@@ -119,10 +119,21 @@ export default function SettingsPage() {
       <NoticeBanner notice={notice} />
 
       <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
-        <h2 className="text-sm sm:text-base font-bold text-[#243026]">⚙️ AI 模型配置</h2>
-        <p className="mt-0.5 text-xs text-[#66756c]">
-          支持 OpenAI 官方以及各类兼容接口（如各大云厂商的兼容端点）。
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm sm:text-base font-bold text-[#243026]">⚙️ AI 模型配置</h2>
+            <p className="mt-0.5 text-xs text-[#66756c]">
+              支持 DeepSeek、OpenAI 以及各类兼容接口。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSettings((prev) => ({ ...prev, baseUrl: DEFAULT_SETTINGS.baseUrl, model: DEFAULT_SETTINGS.model }))}
+            className="rounded-lg bg-[#2f5d50]/10 px-2 py-1 text-[11px] font-bold text-[#2f5d50] hover:bg-[#2f5d50]/20 shrink-0"
+          >
+            填入 DeepSeek 默认配置
+          </button>
+        </div>
         <form className="mt-3 space-y-2.5" onSubmit={handleSave}>
           <Field label="API Key" hint="仅保存在本机浏览器，不上传任何中间服务器。">
             <input

@@ -10,8 +10,8 @@ export const PRODUCTION_OPENAI_PROXY_BASE = '/api/openai/v1'
 
 export const DEFAULT_SETTINGS: AiSettings = {
   apiKey: '',
-  model: 'gpt-4o-mini',
-  baseUrl: OFFICIAL_OPENAI_BASE,
+  model: 'deepseek-v4-flash-vision-exp',
+  baseUrl: 'https://api.deepseek.com',
 }
 
 export function isOfficialOpenAiBase(baseUrl: string): boolean {

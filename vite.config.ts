@@ -11,7 +11,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['pwa-icon.svg'],
       manifest: {
-        name: '四年级数学学习助手',
+        name: '数学助手',
         short_name: '数学助手',
         description: '家庭数学提分与辅导助手',
         theme_color: '#fbfaf5',
