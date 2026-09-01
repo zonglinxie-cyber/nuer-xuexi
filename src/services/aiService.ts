@@ -1,6 +1,19 @@
 import { KNOWLEDGE_POINTS, matchKnowledgePoints } from '../data/knowledgePoints'
-import { MATH_TUTOR_SYSTEM_PROMPT, MATH_TUTOR_USER_PROMPT } from '../prompts/mathTutorPrompt'
-import type { AiSettings, ConfidenceLevel, Judgement, QuestionType, RecognitionResult } from '../types'
+import {
+  MATH_TUTOR_SYSTEM_PROMPT,
+  MATH_TUTOR_USER_PROMPT,
+  MATH_VARIANT_SYSTEM_PROMPT,
+} from '../prompts/mathTutorPrompt'
+import type {
+  AiSettings,
+  ConfidenceLevel,
+  Judgement,
+  MultiRecognitionResult,
+  QuestionType,
+  RecognitionResult,
+  VariantQuestion,
+  WrongQuestion,
+} from '../types'
 import { dataUrlToBase64 } from '../utils/image'
 import { hasApiKey, loadSettings, resolveApiBaseUrl } from './settingsService'
 
@@ -17,7 +30,7 @@ export class AiServiceError extends Error {
 const CONFIDENCE: ConfidenceLevel[] = ['高', '中', '低']
 const QUESTION_TYPES: QuestionType[] = ['计算题', '应用题', '图形题', '填空题', '选择题', '其他']
 const JUDGEMENTS: Judgement[] = ['正确', '错误', '部分正确', '无法判断', '需家长确认']
-const RECOGNIZE_TIMEOUT_MS = 60_000
+const RECOGNIZE_TIMEOUT_MS = 75_000
 const TEST_TIMEOUT_MS = 15_000
 const CORS_MESSAGE =
   '浏览器没能连上这个接口。官方 OpenAI 通常不允许网页直接调用。本地用 npm run dev 时，官方地址会自动走代理；如果是打开打包后的网页，请改用兼容接口。'
@@ -50,35 +63,33 @@ export function extractJson(text: string): unknown {
   const start = candidate.indexOf('{')
   const end = candidate.lastIndexOf('}')
   if (start < 0 || end < start) {
-    throw new AiServiceError('AI 返回的内容不是 JSON，请重试或换一张更清晰的图片。', 'invalid_json')
+    throw new AiServiceError('AI 返回的内容不是有效 JSON，请重试或换一张更清晰的图片。', 'invalid_json')
   }
   try {
     return JSON.parse(candidate.slice(start, end + 1))
   } catch {
-    throw new AiServiceError('AI 返回的内容不是 JSON，请重试或换一张更清晰的图片。', 'invalid_json')
+    throw new AiServiceError('AI 返回的内容格式不正确，请重试或换一张更清晰的图片。', 'invalid_json')
   }
 }
 
 export function normalizeRecognition(raw: unknown): RecognitionResult {
   const data = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
   const knowledgePoints = matchKnowledgePoints(
-    asStringArray(data.knowledge_points).concat(asString(data.knowledge_point) ? [asString(data.knowledge_point)] : []),
+    asStringArray(data.knowledge_points).concat(
+      asString(data.knowledge_point) ? [asString(data.knowledge_point)] : [],
+    ),
   )
   const knowledgePoint = knowledgePoints[0] || asString(data.knowledge_point) || '综合与实践'
   const warning = asString(data.warning)
   const recognizedText = asString(data.recognized_text)
   const confidence = pickEnum(data.confidence_level, CONFIDENCE, warning || !recognizedText ? '低' : '中')
-  let judgement = pickEnum(data.is_correct, JUDGEMENTS, '无法判断')
+  let judgement = pickEnum(data.is_correct, JUDGEMENTS, '需家长确认')
   const needHumanCheck =
     Boolean(data.need_human_check) ||
     judgement === '无法判断' ||
     judgement === '需家长确认' ||
     confidence === '低' ||
     Boolean(warning)
-
-  if (needHumanCheck && judgement === '正确') {
-    judgement = '需家长确认'
-  }
 
   const textbookUnit =
     asString(data.textbook_unit) ||
@@ -93,7 +104,7 @@ export function normalizeRecognition(raw: unknown): RecognitionResult {
     knowledge_points: knowledgePoints.length > 0 ? knowledgePoints : [knowledgePoint],
     textbook_unit: textbookUnit,
     student_answer: asString(data.student_answer),
-    ai_answer: asString(data.ai_answer) || (needHumanCheck ? '无法确定，请家长确认' : ''),
+    ai_answer: asString(data.ai_answer) || (needHumanCheck ? '需家长确认' : ''),
     is_correct: judgement,
     explanation: asString(data.explanation) || '请家长先核对题目，再和孩子一起看解题思路。',
     step_by_step: asStringArray(data.step_by_step),
@@ -105,8 +116,29 @@ export function normalizeRecognition(raw: unknown): RecognitionResult {
   }
 }
 
+export function normalizeMultiRecognition(raw: unknown): MultiRecognitionResult {
+  const data = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+
+  if (Array.isArray(data.questions) && data.questions.length > 0) {
+    const list = data.questions.map(normalizeRecognition)
+    return {
+      isMulti: list.length > 1,
+      overallNotes: asString(data.overall_notes),
+      questions: list,
+    }
+  }
+
+  // 单题回退
+  const single = normalizeRecognition(raw)
+  return {
+    isMulti: false,
+    overallNotes: '',
+    questions: [single],
+  }
+}
+
 export function modelSupportsJsonObject(model: string): boolean {
-  return /gpt-4o|gpt-4\.1|gpt-5|o[1-4]|chatgpt/i.test(model)
+  return /gpt-4o|gpt-4\.1|gpt-5|o[1-4]|chatgpt|deepseek|qwen/i.test(model)
 }
 
 export function isLikelyNetworkOrCorsError(error: unknown): boolean {
@@ -192,11 +224,11 @@ async function readContent(rawText: string): Promise<string> {
   return ''
 }
 
-export async function recognizeMathQuestion(
+export async function recognizeMathQuestions(
   imageDataUrl: string,
   settings?: AiSettings,
   signal?: AbortSignal,
-): Promise<RecognitionResult> {
+): Promise<MultiRecognitionResult> {
   const current = settings ?? loadSettings()
   if (!hasApiKey(current)) {
     throw new AiServiceError('还没有填写 API Key。请先到设置页填写后再识别。', 'missing_key')
@@ -259,11 +291,86 @@ export async function recognizeMathQuestion(
       throw new AiServiceError('AI 没有返回识别结果。请换一张更清晰的图片，或稍后重试。', 'empty')
     }
 
-    const result = normalizeRecognition(extractJson(text))
-    if (!result.recognized_text || result.warning.includes('没有数学题')) {
-      result.need_human_check = true
+    return normalizeMultiRecognition(extractJson(text))
+  } catch (error) {
+    mapFetchError(error, session)
+  } finally {
+    session.dispose()
+  }
+}
+
+export async function recognizeMathQuestion(
+  imageDataUrl: string,
+  settings?: AiSettings,
+  signal?: AbortSignal,
+): Promise<RecognitionResult> {
+  const multi = await recognizeMathQuestions(imageDataUrl, settings, signal)
+  return multi.questions[0] || normalizeRecognition({})
+}
+
+export async function generateVariantQuestions(
+  wrongQuestion: WrongQuestion,
+  count = 3,
+  settings?: AiSettings,
+  signal?: AbortSignal,
+): Promise<VariantQuestion[]> {
+  const current = settings ?? loadSettings()
+  if (!hasApiKey(current)) {
+    throw new AiServiceError('还没有填写 API Key。请先到设置页填写。', 'missing_key')
+  }
+
+  const session = wrapAbort(signal, RECOGNIZE_TIMEOUT_MS)
+  const useJsonMode = modelSupportsJsonObject(current.model)
+
+  const prompt = `请针对以下四年级数学错题，生成 ${count} 道举一反三的同类变式题：
+【错题原题】：${wrongQuestion.correctedText || wrongQuestion.originalText}
+【考查知识点】：${wrongQuestion.knowledgePoint}
+【孩子错因】：${wrongQuestion.errorCause || '计算错误'} ${wrongQuestion.errorCauseNote ? `(${wrongQuestion.errorCauseNote})` : ''}
+【正确解法与参考答案】：${wrongQuestion.correctAnswer || ''}
+
+请按系统要求返回 JSON 格式，包含 3 道变式题。`
+
+  const body: Record<string, unknown> = {
+    model: current.model.trim(),
+    temperature: 0.3,
+    messages: [
+      { role: 'system', content: MATH_VARIANT_SYSTEM_PROMPT },
+      { role: 'user', content: prompt },
+    ],
+  }
+  if (useJsonMode) {
+    body.response_format = { type: 'json_object' }
+  }
+
+  try {
+    const response = await fetch(chatCompletionsUrl(current.baseUrl), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${current.apiKey.trim()}`,
+      },
+      body: JSON.stringify(body),
+      signal: session.signal,
+    })
+    const rawText = await response.text()
+    if (!response.ok) {
+      throw friendlyHttpError(response.status, rawText)
     }
-    return result
+
+    const text = await readContent(rawText)
+    const parsed = extractJson(text) as { variants?: unknown[] }
+    const variantsRaw = Array.isArray(parsed?.variants) ? parsed.variants : []
+
+    return variantsRaw.map((v: any, index: number): VariantQuestion => ({
+      id: `var_${Date.now()}_${index + 1}`,
+      originalQuestionId: wrongQuestion.id,
+      questionText: asString(v.question_text || v.questionText || `变式题 ${index + 1}`),
+      knowledgePoint: asString(v.knowledge_point || wrongQuestion.knowledgePoint),
+      hints: asStringArray(v.hints),
+      stepByStep: asStringArray(v.step_by_step || v.stepByStep),
+      answer: asString(v.answer),
+      explanation: asString(v.explanation),
+    }))
   } catch (error) {
     mapFetchError(error, session)
   } finally {

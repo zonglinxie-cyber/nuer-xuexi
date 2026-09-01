@@ -41,9 +41,9 @@ export default function ImageUploader({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
         <button
-          className="rounded-xl bg-[#2f5d50] px-5 py-3 text-white disabled:opacity-60"
+          className="w-full rounded-xl bg-[#2f5d50] px-5 py-3 text-white disabled:opacity-60 sm:w-auto"
           type="button"
           disabled={disabled}
           onClick={() => cameraRef.current?.click()}
@@ -51,16 +51,16 @@ export default function ImageUploader({
           拍照
         </button>
         <button
-          className="rounded-xl border border-[#2f5d50] px-5 py-3 text-[#2f5d50] disabled:opacity-60"
+          className="w-full rounded-xl border border-[#2f5d50] px-5 py-3 text-[#2f5d50] disabled:opacity-60 sm:w-auto"
           type="button"
           disabled={disabled}
           onClick={() => fileRef.current?.click()}
         >
-          从电脑上传
+          从相册上传
         </button>
         {imageDataUrl ? (
           <button
-            className="rounded-xl border border-[#9a6b4a] px-5 py-3 text-[#9a6b4a] disabled:opacity-60"
+            className="col-span-2 rounded-xl border border-[#9a6b4a] px-5 py-3 text-[#9a6b4a] disabled:opacity-60 sm:col-span-1"
             type="button"
             disabled={disabled}
             onClick={() => onChange('')}

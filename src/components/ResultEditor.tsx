@@ -1,9 +1,24 @@
 import { KNOWLEDGE_POINTS } from '../data/knowledgePoints'
 import type { ErrorCause, Judgement, RecognitionResult } from '../types'
 import Field, { inputClass } from './Field'
+import MathView from './MathView'
 
-const judgements: Judgement[] = ['正确', '错误', '部分正确', '无法判断', '需家长确认']
-const errorCauses: ErrorCause[] = ['题意没读懂', '计算错误', '单位错误', '公式/方法不会', '粗心漏写', '概念不清', '其他']
+const judgements: { label: Judgement; color: string }[] = [
+  { label: '正确', color: 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100' },
+  { label: '错误', color: 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100' },
+  { label: '部分正确', color: 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100' },
+  { label: '需家长确认', color: 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100' },
+]
+
+const errorCauses: ErrorCause[] = [
+  '计算错误',
+  '题意没读懂',
+  '单位错误',
+  '公式/方法不会',
+  '粗心漏写',
+  '概念不清',
+  '其他',
+]
 
 export default function ResultEditor({
   result,
@@ -27,17 +42,53 @@ export default function ResultEditor({
     needReview?: boolean
   }) => void
 }) {
-  const showErrorCause = result.is_correct === '错误' || result.is_correct === '部分正确' || needReview
+  const isWrongOrPartial =
+    result.is_correct === '错误' || result.is_correct === '部分正确' || needReview
 
   return (
     <div className="space-y-4">
-      <Field label="识别出的题目（可修改）">
+      {/* 快捷对错打分栏 */}
+      <div>
+        <label className="block text-sm font-semibold text-[#4a5850] mb-1.5">
+          对错判断（点击快速切换）
+        </label>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {judgements.map((item) => {
+            const isSelected = result.is_correct === item.label
+            return (
+              <button
+                key={item.label}
+                type="button"
+                className={`rounded-xl border py-2.5 px-3 text-sm font-bold transition-all ${item.color} ${
+                  isSelected
+                    ? 'ring-2 ring-offset-1 ring-[#2f5d50] shadow-xs'
+                    : 'opacity-70 border-dashed'
+                }`}
+                onClick={() => onChange({ ...result, is_correct: item.label })}
+              >
+                {isSelected ? '✓ ' : ''}
+                {item.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* 识别题目与排版预览 */}
+      <Field label="识别出的题目（支持 LaTeX 公式 $...$）">
         <textarea
-          className={`${inputClass} min-h-28`}
+          className={`${inputClass} min-h-24 font-mono text-sm`}
           value={result.recognized_text}
           onChange={(event) => onChange({ ...result, recognized_text: event.target.value })}
         />
+        {result.recognized_text && (
+          <div className="mt-2 rounded-xl bg-[#fbfaf5] p-3 text-sm border border-[#e8dfcf]">
+            <span className="text-xs font-bold text-[#2f5d50] block mb-1">公式排版预览：</span>
+            <MathView text={result.recognized_text} />
+          </div>
+        )}
       </Field>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="学生答案（可修改）">
           <input
@@ -54,8 +105,9 @@ export default function ResultEditor({
           />
         </Field>
       </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="知识点（家长确认后保存）">
+        <Field label="知识点归类">
           <select
             className={inputClass}
             value={result.knowledge_point}
@@ -65,7 +117,8 @@ export default function ResultEditor({
                 knowledge_point: event.target.value,
                 knowledge_points: [event.target.value],
                 textbook_unit:
-                  KNOWLEDGE_POINTS.find((item) => item.name === event.target.value)?.unit || result.textbook_unit,
+                  KNOWLEDGE_POINTS.find((item) => item.name === event.target.value)?.unit ||
+                  result.textbook_unit,
               })
             }
           >
@@ -74,60 +127,63 @@ export default function ResultEditor({
             )}
             {KNOWLEDGE_POINTS.map((item) => (
               <option key={item.id} value={item.name}>
-                {item.name}
+                {item.name}（{item.unit}）
               </option>
             ))}
           </select>
         </Field>
-        <Field label="对错判断（最终以家长确认为准）">
-          <select
-            className={inputClass}
-            value={result.is_correct}
-            onChange={(event) => onChange({ ...result, is_correct: event.target.value as Judgement })}
-          >
-            {judgements.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
-      <label className="flex items-center gap-3 text-base">
-        <input
-          type="checkbox"
-          checked={needReview}
-          onChange={(event) => onMetaChange({ needReview: event.target.checked })}
-        />
-        标记为需复习
-      </label>
-      {showErrorCause ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="错因">
-            <select
-              className={inputClass}
-              value={errorCause}
-              onChange={(event) => onMetaChange({ errorCause: event.target.value as ErrorCause | '' })}
-            >
-              <option value="">请选择</option>
-              {errorCauses.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="错因补充">
+
+        <div className="flex items-center pt-6">
+          <label className="flex items-center gap-2.5 text-sm font-medium text-[#4a5850] cursor-pointer">
             <input
-              className={inputClass}
-              value={errorCauseNote}
-              onChange={(event) => onMetaChange({ errorCauseNote: event.target.value })}
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-300 text-[#2f5d50]"
+              checked={needReview}
+              onChange={(event) => onMetaChange({ needReview: event.target.checked })}
             />
-          </Field>
+            <span>标记为“需重点复习”</span>
+          </label>
         </div>
-      ) : null}
-      <Field label="备注">
-        <input className={inputClass} value={notes} onChange={(event) => onMetaChange({ notes: event.target.value })} />
+      </div>
+
+      {isWrongOrPartial && (
+        <div className="rounded-2xl bg-[#fef7ee] p-4 border border-[#fae8c8] space-y-3">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="错因分类（用于生成举一反三变式题）">
+              <select
+                className={inputClass}
+                value={errorCause}
+                onChange={(event) =>
+                  onMetaChange({ errorCause: event.target.value as ErrorCause | '' })
+                }
+              >
+                <option value="">请选择错因</option>
+                {errorCauses.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="错因补充说明">
+              <input
+                className={inputClass}
+                value={errorCauseNote}
+                placeholder="例如：末尾漏了 0，进位看错"
+                onChange={(event) => onMetaChange({ errorCauseNote: event.target.value })}
+              />
+            </Field>
+          </div>
+        </div>
+      )}
+
+      <Field label="家长备注">
+        <input
+          className={inputClass}
+          value={notes}
+          placeholder="可写鼓励的话或复习提示"
+          onChange={(event) => onMetaChange({ notes: event.target.value })}
+        />
       </Field>
     </div>
   )

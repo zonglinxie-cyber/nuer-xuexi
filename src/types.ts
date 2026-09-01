@@ -101,6 +101,31 @@ export interface AppBackup {
   wrongQuestions: WrongQuestion[]
 }
 
+export interface VariantQuestion {
+  id: string
+  originalQuestionId: string
+  questionText: string
+  knowledgePoint: string
+  hints: string[]
+  stepByStep: string[]
+  answer: string
+  explanation: string
+}
+
+export interface UserRewardStats {
+  stars: number // 总获得的星星（攻克错题或做对变式题获得）
+  streakDays: number // 连续学习天数
+  lastActiveDate: string // YYYY-MM-DD
+  masteredCount: number // 已掌握错题数量
+  badges: string[] // 已解锁勋章列表
+}
+
+export interface MultiRecognitionResult {
+  isMulti: boolean
+  overallNotes?: string
+  questions: RecognitionResult[]
+}
+
 export type AppNotice = {
   type: 'info' | 'success' | 'warning' | 'error'
   message: string

@@ -4,6 +4,7 @@ import {
   importBackup,
   isQuotaExceeded,
   loadRecords,
+  localDateKey,
   parseBackup,
   sanitizeRecord,
   sanitizeWrongQuestion,
@@ -49,14 +50,21 @@ describe('isQuotaExceeded', () => {
   })
 })
 
+describe('localDateKey', () => {
+  it('uses the local calendar date', () => {
+    const now = new Date(2026, 8, 1, 7, 0, 0)
+    expect(localDateKey(now)).toBe('2026-09-01')
+  })
+})
+
 describe('sanitizeRecord', () => {
-  it('drops images and fills missing fields', () => {
+  it('sanitizes records and sets defaults', () => {
     const record = sanitizeRecord({
       questionText: '36 × 24 =',
       imageDataUrl: 'data:image/png;base64,abc',
       judgement: '不是合法值',
     })
-    expect(record.imageDataUrl).toBe('')
+    expect(record.questionText).toBe('36 × 24 =')
     expect(record.judgement).toBe('无法判断')
     expect(record.questionType).toBe('其他')
     expect(record.knowledgePoints.length).toBeGreaterThan(0)
@@ -82,7 +90,7 @@ describe('parseBackup / importBackup', () => {
     expect(() => parseBackup(null)).toThrow('备份文件格式不正确')
   })
 
-  it('imports sanitized data and reports counts', () => {
+  it('imports sanitized data and reports counts', async () => {
     const payload = {
       records: [{ id: 'a', questionText: '1', imageDataUrl: 'data:image/png;base64,xx' }],
       wrongQuestions: [{ id: 'b', correctedText: '2' }],
@@ -92,8 +100,8 @@ describe('parseBackup / importBackup', () => {
     expect(summary.incomingWrong).toBe(1)
     expect(summary.currentRecords).toBe(0)
 
-    const imported = importBackup(payload)
-    expect(imported.records[0]?.imageDataUrl).toBe('')
+    const imported = await importBackup(payload)
+    expect(imported.records[0]?.id).toBe('a')
     expect(loadRecords()).toHaveLength(1)
   })
 })

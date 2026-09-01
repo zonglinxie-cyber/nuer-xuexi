@@ -1,108 +1,123 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import MathView from '../components/MathView'
 import { deleteRecord, loadRecords, loadWrongQuestions } from '../services/storageService'
 import { daysAgo, formatDateTime, formatPercent } from '../utils/format'
 
 const DECIDED = new Set(['正确', '错误', '部分正确'])
 
 export default function RecordsPage() {
-  const [records, setRecords] = useState(() => loadRecords().slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
+  const [records, setRecords] = useState(() =>
+    loadRecords().slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  )
   const wrongQuestions = loadWrongQuestions().slice().sort((a, b) => b.savedAt.localeCompare(a.savedAt))
   const total = records.length
   const decided = records.filter((item) => DECIDED.has(item.judgement))
   const correct = records.filter((item) => item.judgement === '正确').length
-  const wrong = records.filter((item) => item.judgement === '错误' || item.judgement === '部分正确').length
-  const pending = records.filter((item) => item.judgement === '无法判断' || item.judgement === '需家长确认').length
   const rate = decided.length === 0 ? 0 : correct / decided.length
   const recent7 = records.filter((item) => new Date(item.createdAt) >= daysAgo(7)).length
+  const pendingReview = wrongQuestions.filter((item) => item.reviewStatus !== '已掌握').length
+
   const knowledgeWrong = new Map<string, number>()
   for (const item of wrongQuestions) {
     knowledgeWrong.set(item.knowledgePoint, (knowledgeWrong.get(item.knowledgePoint) ?? 0) + 1)
   }
 
   function handleDelete(id: string) {
-    if (!window.confirm('确定删除这条学习记录吗？不会删除错题本里的对应题目。')) return
+    if (!window.confirm('确定删除这条学习记录吗？')) return
     deleteRecord(id)
     setRecords(loadRecords().slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
   }
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-3 sm:grid-cols-3">
-        <Stat label="总做题数" value={String(total)} />
-        <Stat label="正确数" value={String(correct)} />
-        <Stat label="错误数" value={String(wrong)} />
-        <Stat label="正确率" value={formatPercent(rate)} hint="只统计正确、错误、部分正确" />
-        <Stat label="待确认" value={String(pending)} />
-        <Stat label="最近 7 天做题" value={String(recent7)} />
-        <Stat label="错题本数量" value={String(wrongQuestions.length)} />
+      {/* 核心指标看板 */}
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4 [&>*]:min-w-0">
+        <Stat label="总做题数" value={String(total)} sub="累计批改" />
+        <Stat label="正确率" value={formatPercent(rate)} color="text-emerald-700" sub={`正确 ${correct} / 已判 ${decided.length}`} />
+        <Stat label="待复习错题" value={String(pendingReview)} color="text-amber-700" sub="未掌握" />
+        <Stat label="近 7 天做题" value={String(recent7)} color="text-[#2f5d50]" sub="本周学习热度" />
       </section>
 
-      <section className="rounded-2xl bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">各知识点错题数量</h2>
+      {/* 错题分布薄弱点诊断 */}
+      <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 border border-[#ece6d8]">
+        <h2 className="text-lg font-bold text-[#243026]">🎯 单元知识点薄弱分布</h2>
+        <p className="mt-1 text-xs text-[#66756c]">根据错题归类，直观查看孩子的薄弱考点：</p>
         {knowledgeWrong.size === 0 ? (
-          <p className="mt-3 text-[#66756c]">还没有错题统计。</p>
+          <p className="mt-4 text-sm text-[#8c9c93]">太棒了！目前错题本中没有错题堆积。</p>
         ) : (
-          <ul className="mt-4 space-y-2">
-            {[...knowledgeWrong.entries()].map(([name, count]) => (
-              <li key={name} className="flex justify-between rounded-xl bg-[#fbfaf5] px-4 py-3">
-                <span>{name}</span>
-                <strong>{count}</strong>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="rounded-2xl bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">最近保存的错题</h2>
-        {wrongQuestions.length === 0 ? (
-          <p className="mt-3 text-[#66756c]">还没有保存错题。</p>
-        ) : (
-          <ul className="mt-4 space-y-3">
-            {wrongQuestions.slice(0, 5).map((item) => (
-              <li key={item.id}>
-                <Link to={`/wrong-book/${item.id}`} className="block rounded-xl bg-[#fbfaf5] px-4 py-3">
-                  <div className="flex justify-between gap-3 text-sm text-[#66756c]">
-                    <span>{item.knowledgePoint}</span>
-                    <span>{formatDateTime(item.savedAt)}</span>
+          <div className="mt-4 space-y-2.5">
+            {[...knowledgeWrong.entries()]
+              .sort((a, b) => b[1] - a[1])
+              .map(([name, count]) => {
+                const percent = Math.min(100, (count / wrongQuestions.length) * 100)
+                return (
+                  <div key={name} className="rounded-2xl bg-[#fbfaf5] p-3.5 border border-[#eee7d8]">
+                    <div className="flex justify-between text-sm font-semibold text-[#243026]">
+                      <span>{name}</span>
+                      <span className="text-[#b45309]">{count} 道错题</span>
+                    </div>
+                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#e8e2d4]">
+                      <div
+                        className="h-full bg-linear-to-r from-[#d97706] to-[#b45309] rounded-full"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
                   </div>
-                  <p className="mt-1 line-clamp-2">{item.correctedText}</p>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                )
+              })}
+          </div>
         )}
       </section>
 
-      <section className="rounded-2xl bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">全部学习记录</h2>
+      {/* 全部历史记录列表 */}
+      <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 border border-[#ece6d8]">
+        <h2 className="text-lg font-bold text-[#243026]">📋 全部批改记录</h2>
         {records.length === 0 ? (
-          <p className="mt-3 text-[#66756c]">还没有处理过题目。</p>
+          <p className="mt-4 text-sm text-[#8c9c93]">还没有处理过题目。</p>
         ) : (
           <ul className="mt-4 space-y-3">
-            {records.map((item) => (
-              <li key={item.id} className="rounded-xl bg-[#fbfaf5] px-4 py-3">
-                <div className="flex flex-wrap items-start justify-between gap-2 text-sm text-[#66756c]">
-                  <span>{formatDateTime(item.createdAt)}</span>
-                  <span>
-                    {item.judgement}
-                    {item.parentConfirmed ? ' · 家长已确认' : ' · 未确认'}
-                    {item.savedAsWrong ? ' · 已入错题本' : ''}
-                  </span>
-                </div>
-                <p className="mt-1">
-                  [{item.questionType} · {item.knowledgePoint}] {item.questionText}
-                </p>
-                <button
-                  className="mt-2 text-sm text-[#9a6b4a] underline"
-                  type="button"
-                  onClick={() => handleDelete(item.id)}
+            {records.map((item) => {
+              const isCorrect = item.judgement === '正确'
+              const isWrong = item.judgement === '错误' || item.judgement === '部分正确'
+
+              return (
+                <li
+                  key={item.id}
+                  className="rounded-2xl bg-[#fbfaf5] p-4 border border-[#eee7d8] transition-all hover:border-[#d9d2c3]"
                 >
-                  删除这条记录
-                </button>
-              </li>
-            ))}
+                  <div className="flex flex-wrap items-start justify-between gap-2 text-xs text-[#66756c]">
+                    <span>{formatDateTime(item.createdAt)}</span>
+                    <span
+                      className={`font-bold px-2 py-0.5 rounded-md ${
+                        isCorrect
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : isWrong
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {item.judgement}
+                      {item.savedAsWrong ? ' · 已入错题本' : ''}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-sm leading-relaxed text-[#243026]">
+                    <span className="font-semibold text-[#2f5d50] mr-1">
+                      [{item.questionType} · {item.knowledgePoint}]
+                    </span>
+                    <MathView text={item.questionText} as="span" />
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      className="text-xs text-[#9a6b4a] hover:underline"
+                      type="button"
+                      onClick={() => handleDelete(item.id)}
+                    >
+                      删除记录
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
@@ -110,12 +125,22 @@ export default function RecordsPage() {
   )
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Stat({
+  label,
+  value,
+  color = 'text-[#243026]',
+  sub,
+}: {
+  label: string
+  value: string
+  color?: string
+  sub?: string
+}) {
   return (
-    <div className="rounded-2xl bg-white px-5 py-6 shadow-sm">
-      <p className="text-[#66756c]">{label}</p>
-      <p className="mt-2 text-3xl font-semibold">{value}</p>
-      {hint ? <p className="mt-2 text-sm text-[#66756c]">{hint}</p> : null}
+    <div className="rounded-3xl bg-white p-4 shadow-sm sm:p-5 border border-[#ece6d8]">
+      <p className="text-xs font-semibold text-[#66756c]">{label}</p>
+      <p className={`mt-2 text-2xl font-bold sm:text-3xl ${color}`}>{value}</p>
+      {sub ? <p className="mt-1 text-xs text-[#8c9c93]">{sub}</p> : null}
     </div>
   )
 }

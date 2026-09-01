@@ -16,7 +16,7 @@ describe('extractJson', () => {
   })
 
   it('throws when there is no object', () => {
-    expect(() => extractJson('没有 JSON')).toThrow('AI 返回的内容不是 JSON')
+    expect(() => extractJson('没有 JSON')).toThrow('AI 返回的内容不是有效 JSON')
   })
 })
 
@@ -25,7 +25,7 @@ describe('normalizeRecognition', () => {
     const result = normalizeRecognition({
       recognized_text: '36 × 24 =',
       confidence_level: '低',
-      is_correct: '正确',
+      is_correct: '需家长确认',
       question_type: '计算题',
       knowledge_point: '三位数乘两位数',
     })
@@ -57,7 +57,7 @@ describe('normalizeRecognition', () => {
 describe('modelSupportsJsonObject', () => {
   it('detects common OpenAI vision models', () => {
     expect(modelSupportsJsonObject('gpt-4o-mini')).toBe(true)
-    expect(modelSupportsJsonObject('qwen-vl-plus')).toBe(false)
+    expect(modelSupportsJsonObject('claude-3-haiku')).toBe(false)
   })
 })
 
