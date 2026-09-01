@@ -68,6 +68,16 @@ describe('normalizeRecognition', () => {
     expect(result.knowledge_points).toEqual(['拼音与字音'])
     expect(result.question_type).toBe('看拼音写字')
   })
+
+  it('auto-detects English subject from question text or detected_subject', () => {
+    const result = normalizeRecognition({
+      detected_subject: 'english',
+      recognized_text: 'Look and choose: What is your name?',
+      question_type: '句型',
+      knowledge_point: '核心句型',
+    })
+    expect(result.subject).toBe('english')
+  })
 })
 
 describe('modelSupportsJsonObject', () => {

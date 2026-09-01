@@ -152,6 +152,7 @@ export interface UserRewardStats {
 export interface MultiRecognitionResult {
   isMulti: boolean
   overallNotes?: string
+  detectedSubject?: SubjectId
   questions: RecognitionResult[]
 }
 

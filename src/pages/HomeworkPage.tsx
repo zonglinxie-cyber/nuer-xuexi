@@ -181,14 +181,22 @@ export default function HomeworkPage() {
 
     try {
       const multi = await recognizeQuestions(imageDataUrl, subject, undefined, controller.signal)
-      const newDrafts = multi.questions.map((q) => emptyDraft(imageDataUrl, q, subject))
+      const detected = multi.detectedSubject || multi.questions[0]?.subject || subject
+      const newDrafts = multi.questions.map((q) => emptyDraft(imageDataUrl, q, q.subject || detected))
       setDrafts(newDrafts)
       setActiveIndex(0)
       setHasResult(true)
       setViewTab('editor')
       setMode('guide')
 
-      if (multi.questions.length > 1) {
+      if (detected !== subject) {
+        setSubject(detected)
+        saveLastSubject(detected)
+        setNotice({
+          type: 'info',
+          message: `💡 检测到作业实际为【${SUBJECT_LABELS[detected]}】，已自动为您适配${SUBJECT_LABELS[detected]}考点体系与发音！`,
+        })
+      } else if (multi.questions.length > 1) {
         setNotice({
           type: 'success',
           message: `识别到整页共 ${multi.questions.length} 道题，已为您完成全部批改！`,

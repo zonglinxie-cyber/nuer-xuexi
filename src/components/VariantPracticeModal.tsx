@@ -57,6 +57,7 @@ export default function VariantPracticeModal({
       return
     }
     const ok = speakText(text, {
+      subject: wrongQuestion.subject,
       onEnd: () => setSpeakingId(null),
       onError: (err) => {
         setSpeakingId(null)

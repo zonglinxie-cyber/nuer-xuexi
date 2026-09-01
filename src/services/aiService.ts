@@ -1,5 +1,12 @@
 import { findKnowledgePoint, matchKnowledgePoints } from '../data/knowledge'
-import { ALL_QUESTION_TYPES, defaultKnowledgeName, defaultTextbookUnit } from '../data/subjects'
+import {
+  ALL_QUESTION_TYPES,
+  defaultKnowledgeName,
+  defaultTextbookUnit,
+  detectSubjectFromText,
+  isSubjectId,
+  parseSubjectId,
+} from '../data/subjects'
 import {
   CHINESE_TUTOR_SYSTEM_PROMPT,
   CHINESE_TUTOR_USER_PROMPT,
@@ -116,8 +123,16 @@ function tutorPrompts(subject: SubjectId): { system: string; user: string; varia
   }
 }
 
-export function normalizeRecognition(raw: unknown, subject: SubjectId = 'math'): RecognitionResult {
+export function normalizeRecognition(raw: unknown, defaultSubject: SubjectId = 'math'): RecognitionResult {
   const data = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const recognizedText = asString(data.recognized_text)
+  const inferred = isSubjectId(data.subject)
+    ? (data.subject as SubjectId)
+    : isSubjectId(data.detected_subject)
+      ? (data.detected_subject as SubjectId)
+      : detectSubjectFromText(recognizedText) || defaultSubject
+
+  const subject = inferred
   const knowledgePoints = matchKnowledgePoints(
     asStringArray(data.knowledge_points).concat(
       asString(data.knowledge_point) ? [asString(data.knowledge_point)] : [],
@@ -126,7 +141,6 @@ export function normalizeRecognition(raw: unknown, subject: SubjectId = 'math'):
   )
   const knowledgePoint = knowledgePoints[0] || asString(data.knowledge_point) || defaultKnowledgeName(subject)
   const warning = asString(data.warning)
-  const recognizedText = asString(data.recognized_text)
   const confidence = pickEnum(data.confidence_level, CONFIDENCE, warning || !recognizedText ? '低' : '中')
   const judgement = pickEnum(data.is_correct, JUDGEMENTS, '需家长确认')
   const needHumanCheck =
@@ -162,22 +176,30 @@ export function normalizeRecognition(raw: unknown, subject: SubjectId = 'math'):
   }
 }
 
-export function normalizeMultiRecognition(raw: unknown, subject: SubjectId = 'math'): MultiRecognitionResult {
+export function normalizeMultiRecognition(raw: unknown, requestedSubject: SubjectId = 'math'): MultiRecognitionResult {
   const data = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const rawDetected = data.detected_subject
 
   if (Array.isArray(data.questions) && data.questions.length > 0) {
-    const list = data.questions.map((item) => normalizeRecognition(item, subject))
+    const list = data.questions.map((item) => normalizeRecognition(item, requestedSubject))
+    const firstDetected = list.find((q) => q.subject !== requestedSubject)?.subject
+    const detectedSubject = parseSubjectId(rawDetected, firstDetected || requestedSubject)
+
     return {
       isMulti: list.length > 1,
       overallNotes: asString(data.overall_notes),
+      detectedSubject,
       questions: list,
     }
   }
 
-  const single = normalizeRecognition(raw, subject)
+  const single = normalizeRecognition(raw, requestedSubject)
+  const detectedSubject = parseSubjectId(rawDetected, single.subject || requestedSubject)
+
   return {
     isMulti: false,
     overallNotes: '',
+    detectedSubject,
     questions: [single],
   }
 }

@@ -1,3 +1,5 @@
+import type { SubjectId } from '../types'
+
 export function cleanTextForSpeech(raw: string): string {
   return raw
     .replace(/\\times/g, ' 乘以 ')
@@ -11,7 +13,7 @@ export function cleanTextForSpeech(raw: string): string {
     .replace(/\^3/g, '立方')
     .replace(/\$/g, '')
     .replace(/\\/g, '')
-    .replace(/[\*\_\[\]\(\)\{\}]/g, ' ')
+    .replace(/[\*\_\[\]\{\}]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -57,7 +59,8 @@ function needsKeepAlive(): boolean {
   return /Chrome|Chromium|Edg\//.test(navigator.userAgent)
 }
 
-function pickZhVoice(): SpeechSynthesisVoice | undefined {
+export function pickZhVoice(): SpeechSynthesisVoice | undefined {
+  if (!isSpeechSupported()) return undefined
   const voices = window.speechSynthesis.getVoices()
   const zh = voices.filter((voice) => /zh|cmn|Chinese|中文|普通话/i.test(`${voice.lang} ${voice.name}`))
   if (zh.length === 0) return undefined
@@ -66,15 +69,41 @@ function pickZhVoice(): SpeechSynthesisVoice | undefined {
   )
 }
 
+export function pickEnVoice(): SpeechSynthesisVoice | undefined {
+  if (!isSpeechSupported()) return undefined
+  const voices = window.speechSynthesis.getVoices()
+  const en = voices.filter((voice) => /^en/i.test(voice.lang) || /English/i.test(voice.name))
+  if (en.length === 0) return undefined
+  return (
+    en.find((voice) =>
+      /samantha|karen|victoria|daniel|oliver|serena|ava|allison|tom|moira|tessa|fiona|veena|cindy|stephanie|jenny|aria|guy|zira|google us english|natural/i.test(
+        voice.name,
+      ),
+    ) ||
+    en.find((voice) => /en[-_]us/i.test(voice.lang)) ||
+    en[0]
+  )
+}
+
+export function isPureEnglish(text: string): boolean {
+  const hasEn = /[a-zA-Z]{2,}/.test(text)
+  const hasZh = /[\u4e00-\u9fa5]/.test(text)
+  return hasEn && !hasZh
+}
+
 export function splitForSpeech(text: string, maxLen = 180): string[] {
   if (text.length <= maxLen) return [text]
   const parts: string[] = []
   let remain = text
   while (remain.length > maxLen) {
     let cut = remain.lastIndexOf('。', maxLen)
-    if (cut < 40) cut = remain.lastIndexOf('，', maxLen)
-    if (cut < 40) cut = remain.lastIndexOf(' ', maxLen)
-    if (cut < 40) cut = maxLen
+    if (cut < 30) cut = remain.lastIndexOf('，', maxLen)
+    if (cut < 30) cut = remain.lastIndexOf('；', maxLen)
+    if (cut < 30) cut = remain.lastIndexOf('. ', maxLen)
+    if (cut < 30) cut = remain.lastIndexOf('? ', maxLen)
+    if (cut < 30) cut = remain.lastIndexOf('! ', maxLen)
+    if (cut < 30) cut = remain.lastIndexOf(' ', maxLen)
+    if (cut < 30) cut = maxLen
     const take = cut < maxLen ? cut + 1 : maxLen
     parts.push(remain.slice(0, take).trim())
     remain = remain.slice(take).trim()
@@ -104,29 +133,38 @@ export function preloadSpeechVoices(): void {
   })
 }
 
+export interface SpeechOptions {
+  subject?: SubjectId
+  lang?: string
+  onStart?: () => void
+  onEnd?: () => void
+  onError?: (err: unknown) => void
+}
+
 export function speakText(
   text: string,
-  callbacks?: {
+  callbacksOrOptions?: SpeechOptions | {
     onStart?: () => void
     onEnd?: () => void
     onError?: (err: unknown) => void
   },
 ): boolean {
   if (!isSpeechSupported()) {
-    callbacks?.onError?.('当前浏览器不支持语音朗读')
+    callbacksOrOptions?.onError?.('当前浏览器不支持语音朗读')
     return false
   }
   if (isWeChatBrowser()) {
-    callbacks?.onError?.('微信里不能朗读。请用 Safari 或 Chrome 打开这个网页。')
+    callbacksOrOptions?.onError?.('微信里不能朗读。请用 Safari 或 Chrome 打开这个网页。')
     return false
   }
 
   const clean = cleanTextForSpeech(text)
   if (!clean) {
-    callbacks?.onError?.('没有可以朗读的文字')
+    callbacksOrOptions?.onError?.('没有可以朗读的文字')
     return false
   }
 
+  const subject = (callbacksOrOptions as SpeechOptions)?.subject
   const session = ++speakSession
   const stillThisSpeak = () => session === speakSession
 
@@ -147,6 +185,7 @@ export function speakText(
 
   const chunks = splitForSpeech(clean, isIOS() ? 160 : 240)
   const zhVoice = pickZhVoice()
+  const enVoice = pickEnVoice()
   let started = false
 
   const finishOk = () => {
@@ -155,7 +194,7 @@ export function speakText(
     clearSpeechTimers()
     queue = []
     activeUtterance = null
-    callbacks?.onEnd?.()
+    callbacksOrOptions?.onEnd?.()
   }
 
   const fail = (message: string) => {
@@ -169,7 +208,7 @@ export function speakText(
     } catch {
       // ignore
     }
-    callbacks?.onError?.(message)
+    callbacksOrOptions?.onError?.(message)
   }
 
   const playNext = () => {
@@ -191,16 +230,26 @@ export function speakText(
 
   queue = chunks.map((chunk) => {
     const utterance = new SpeechSynthesisUtterance(chunk)
-    utterance.lang = 'zh-CN'
-    utterance.rate = 0.92
-    utterance.pitch = 1.05
+    const isEnChunk = isPureEnglish(chunk) || (subject === 'english' && !/[\u4e00-\u9fa5]/.test(chunk))
+
+    if (isEnChunk) {
+      utterance.lang = 'en-US'
+      utterance.rate = 0.88 // 适合英语启蒙听清发音
+      utterance.pitch = 1.0
+      if (enVoice) utterance.voice = enVoice
+    } else {
+      utterance.lang = 'zh-CN'
+      utterance.rate = 0.92
+      utterance.pitch = 1.05
+      if (zhVoice) utterance.voice = zhVoice
+    }
+
     utterance.volume = 1
-    if (zhVoice) utterance.voice = zhVoice
     utterance.onstart = () => {
       if (!stillThisSpeak()) return
       if (!started) {
         started = true
-        callbacks?.onStart?.()
+        callbacksOrOptions?.onStart?.()
       }
     }
     utterance.onend = () => {

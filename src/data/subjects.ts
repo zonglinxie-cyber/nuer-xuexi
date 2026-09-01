@@ -101,3 +101,46 @@ export function printSheetTitle(subject?: SubjectId | 'all'): string {
   if (subject === 'math') return '四年级数学错题专项重做练习单'
   return '四年级错题专项重做练习单'
 }
+
+export function detectSubjectFromText(text: string): SubjectId | undefined {
+  if (!text || typeof text !== 'string') return undefined
+  const clean = text.trim()
+  if (!clean) return undefined
+
+  // 英语特征词汇与规则
+  const englishPatterns = [
+    /\b(listen|read|choose|write|fill|match|circle|complete|look|what|where|when|who|how|is|are|am|do|does|can|have|has|this|that|these|those)\b/i,
+    /\b(my|your|his|her|its|our|their|name|school|classroom|teacher|student|friend|apple|banana|book|pen|bag|desk|chair)\b/i,
+  ]
+  const englishWordMatches = clean.match(/[a-zA-Z]{2,}/g) || []
+  const chineseCharMatches = clean.match(/[\u4e00-\u9fa5]/g) || []
+
+  // 如果英文字符数占主导（或有经典英语指令词且中文很少）
+  if (
+    englishPatterns.some((p) => p.test(clean)) &&
+    (englishWordMatches.length >= 3 || englishWordMatches.length > chineseCharMatches.length * 0.4)
+  ) {
+    return 'english'
+  }
+
+  // 数学特征词汇与公式
+  const mathPatterns = [
+    /\\times|\\div|\\frac|\\angle|\$|km²|cm²|m²|平方千米|公顷|平方米|平方厘米/,
+    /\b(\d+\s*[\+\-\*\/×÷＝=]\s*\d+)\b/,
+    /(计算|算式|脱式|竖式|商是|余数|积是|求和|解方程|大数的认识|亿|万|射线|直线|角|平行|梯形|周长|面积|单价|数量|总价|速度|时间|路程)/,
+  ]
+  if (mathPatterns.some((p) => p.test(clean))) {
+    return 'math'
+  }
+
+  // 语文特征词汇
+  const chinesePatterns = [
+    /(拼音|看拼音|组词|造句|成语|近义词|反义词|多音字|修改病句|病句|标点符号|修辞|比喻|拟人|排比|课文|默写|背诵|古诗|文言文|现代文|短文|阅读短文|中心思想|段落大意|习作|写话)/,
+  ]
+  if (chinesePatterns.some((p) => p.test(clean))) {
+    return 'chinese'
+  }
+
+  return undefined
+}
+

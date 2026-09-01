@@ -1,12 +1,14 @@
 export const SHARED_RECOGNITION_JSON_SCHEMA = `{
   "is_multi": false,
-  "overall_notes": "",
+  "detected_subject": "math | chinese | english（根据图片实际内容判断的学科）",
+  "overall_notes": "若图片中学科与用户选择不一致，请在此简要说明，如：检测到本页包含英语题目",
   "questions": [
     {
+      "subject": "math | chinese | english",
       "recognized_text": "识别出的题目完整文本，包含题号与题干",
       "confidence_level": "高 | 中 | 低",
       "question_type": "题型（必须从本学科允许的题型中选）",
-      "knowledge_point": "最匹配的一个知识点（尽量从本学科知识点列表匹配）",
+      "knowledge_point": "最匹配的一个知识点（尽量从对应学科知识点列表匹配）",
       "knowledge_points": ["相关知识点"],
       "textbook_unit": "对应教材章节或能力板块",
       "student_answer": "图片中若有学生手写或答题笔迹则提取，没有则留空字符串",

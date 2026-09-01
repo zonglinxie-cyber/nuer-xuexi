@@ -36,6 +36,7 @@ export default function ExplanationPanel({
 
     setSpeechError('')
     const ok = speakText(textToRead, {
+      subject: result.subject,
       onEnd: () => setSpeaking(false),
       onError: (err) => {
         setSpeaking(false)

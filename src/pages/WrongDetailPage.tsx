@@ -73,8 +73,10 @@ export default function WrongDetailPage() {
       setSpeaking(false)
       return
     }
-    const speechContent = `题目：${item?.correctedText || item?.originalText}。解析思路：${item?.explanation}。解题步骤：${item?.stepByStep.join('。')}`
+    if (!item) return
+    const speechContent = `题目：${item.correctedText || item.originalText}。解析思路：${item.explanation}。解题步骤：${item.stepByStep.join('。')}`
     const ok = speakText(speechContent, {
+      subject: item.subject,
       onEnd: () => setSpeaking(false),
       onError: (err) => {
         setSpeaking(false)
