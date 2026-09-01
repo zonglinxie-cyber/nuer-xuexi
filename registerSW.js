@@ -1,1 +1,0 @@
-if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/nuer-xuexi/sw.js', { scope: '/nuer-xuexi/' })})}
