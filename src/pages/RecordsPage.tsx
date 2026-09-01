@@ -1,20 +1,31 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import MathView from '../components/MathView'
+import { parseSubjectId, SUBJECT_IDS, SUBJECT_LABELS } from '../data/subjects'
 import { deleteRecord, loadRecords, loadWrongQuestions } from '../services/storageService'
+import type { SubjectId } from '../types'
 import { daysAgo, formatDateTime, formatPercent } from '../utils/format'
 
 const DECIDED = new Set(['正确', '错误', '部分正确'])
 
 export default function RecordsPage() {
+  const [subjectFilter, setSubjectFilter] = useState<SubjectId | '全部'>('全部')
   const [records, setRecords] = useState(() =>
     loadRecords().slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
   )
-  const wrongQuestions = loadWrongQuestions().slice().sort((a, b) => b.savedAt.localeCompare(a.savedAt))
-  const total = records.length
-  const decided = records.filter((item) => DECIDED.has(item.judgement))
-  const correct = records.filter((item) => item.judgement === '正确').length
+  const allWrong = loadWrongQuestions().slice().sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+  const visibleRecords = useMemo(
+    () => records.filter((item) => (subjectFilter === '全部' ? true : parseSubjectId(item.subject) === subjectFilter)),
+    [records, subjectFilter],
+  )
+  const wrongQuestions = useMemo(
+    () => allWrong.filter((item) => (subjectFilter === '全部' ? true : parseSubjectId(item.subject) === subjectFilter)),
+    [allWrong, subjectFilter],
+  )
+  const total = visibleRecords.length
+  const decided = visibleRecords.filter((item) => DECIDED.has(item.judgement))
+  const correct = visibleRecords.filter((item) => item.judgement === '正确').length
   const rate = decided.length === 0 ? 0 : correct / decided.length
-  const recent7 = records.filter((item) => new Date(item.createdAt) >= daysAgo(7)).length
+  const recent7 = visibleRecords.filter((item) => new Date(item.createdAt) >= daysAgo(7)).length
   const pendingReview = wrongQuestions.filter((item) => item.reviewStatus !== '已掌握').length
 
   const knowledgeWrong = new Map<string, number>()
@@ -30,6 +41,23 @@ export default function RecordsPage() {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap gap-2">
+        {(['全部', ...SUBJECT_IDS] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setSubjectFilter(id)}
+            className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+              subjectFilter === id
+                ? 'bg-[#2f5d50] text-white shadow-xs'
+                : 'bg-white border border-[#e0d9cb] text-[#66756c] hover:bg-[#f5ede1]'
+            }`}
+          >
+            {id === '全部' ? '全部学科' : SUBJECT_LABELS[id]}
+          </button>
+        ))}
+      </div>
+
       {/* 核心指标看板 */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4 [&>*]:min-w-0">
         <Stat label="总做题数" value={String(total)} sub="累计批改" />
@@ -72,11 +100,11 @@ export default function RecordsPage() {
       {/* 全部历史记录列表 */}
       <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 border border-[#ece6d8]">
         <h2 className="text-lg font-bold text-[#243026]">📋 全部批改记录</h2>
-        {records.length === 0 ? (
+        {visibleRecords.length === 0 ? (
           <p className="mt-4 text-sm text-[#8c9c93]">还没有处理过题目。</p>
         ) : (
           <ul className="mt-4 space-y-3">
-            {records.map((item) => {
+            {visibleRecords.map((item) => {
               const isCorrect = item.judgement === '正确'
               const isWrong = item.judgement === '错误' || item.judgement === '部分正确'
 
@@ -102,7 +130,7 @@ export default function RecordsPage() {
                   </div>
                   <div className="mt-2 text-sm leading-relaxed text-[#243026]">
                     <span className="font-semibold text-[#2f5d50] mr-1">
-                      [{item.questionType} · {item.knowledgePoint}]
+                      [{SUBJECT_LABELS[parseSubjectId(item.subject)]} · {item.questionType} · {item.knowledgePoint}]
                     </span>
                     <MathView text={item.questionText} as="span" />
                   </div>

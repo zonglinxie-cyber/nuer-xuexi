@@ -1,0 +1,88 @@
+import type { KnowledgePoint } from '../../types'
+
+export const ENGLISH_KNOWLEDGE_POINTS: KnowledgePoint[] = [
+  {
+    id: 'en-letters',
+    subject: 'english',
+    name: '字母书写',
+    unit: '语音与书写',
+    description: '正确书写 26 个大小写字母。',
+  },
+  {
+    id: 'en-spelling',
+    subject: 'english',
+    name: '单词拼写',
+    unit: '语音与书写',
+    description: '看图写词、抄写和听写后的拼写核对。',
+  },
+  {
+    id: 'en-phonics',
+    subject: 'english',
+    name: '自然拼读',
+    unit: '语音与书写',
+    description: '常见字母组合的拼读，如 a_e、ch、th。',
+  },
+  {
+    id: 'en-jobs',
+    subject: 'english',
+    name: '询问职业',
+    unit: '功能句型',
+    description: "What's ... job? He/She is a ...",
+  },
+  {
+    id: 'en-appearance',
+    subject: 'english',
+    name: '描述外貌与性格',
+    unit: '功能句型',
+    description: '用 tall, kind, funny 等词描述朋友或家人。',
+  },
+  {
+    id: 'en-places',
+    subject: 'english',
+    name: '询问位置与场所',
+    unit: '功能句型',
+    description: '用 in/on/under 和常见场所词询问位置。',
+  },
+  {
+    id: 'en-home',
+    subject: 'english',
+    name: '家庭与家务',
+    unit: '功能句型',
+    description: '用 can / I can ... 表达能帮家里做什么。',
+  },
+  {
+    id: 'en-weather',
+    subject: 'english',
+    name: '天气与活动',
+    unit: '功能句型',
+    description: "What's the weather like? We can/can't ...",
+  },
+  {
+    id: 'en-seasons',
+    subject: 'english',
+    name: '季节与衣物',
+    unit: '功能句型',
+    description: '用季节和衣物词汇描述穿什么、做什么。',
+  },
+  {
+    id: 'en-sentence',
+    subject: 'english',
+    name: '核心句型',
+    unit: '功能句型',
+    description: '一般现在时简单句、问答配对、连词成句。',
+  },
+  {
+    id: 'en-picture-read',
+    subject: 'english',
+    name: '看图理解',
+    unit: '阅读理解',
+    description: '根据配图提取信息，完成 tick / 选择 / 判断。',
+  },
+  {
+    id: 'en-comprehensive',
+    subject: 'english',
+    name: '英语综合',
+    unit: '英语综合',
+    description: '综合运用本学期英语能力，或无法归到单一句型。',
+  },
+]

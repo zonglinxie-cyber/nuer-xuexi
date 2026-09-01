@@ -1,3 +1,10 @@
+import {
+  ALL_ERROR_CAUSES,
+  ALL_QUESTION_TYPES,
+  defaultKnowledgeName,
+  defaultTextbookUnit,
+  parseSubjectId,
+} from '../data/subjects'
 import type {
   AppBackup,
   ErrorCause,
@@ -24,20 +31,12 @@ import { loadSettings } from './settingsService'
 const RECORDS_KEY = 'grade4-math-helper-records-v1'
 const WRONG_KEY = 'grade4-math-helper-wrong-v1'
 const REWARDS_KEY = 'grade4-math-helper-rewards-v1'
-const APP_VERSION = '0.2.0'
+const APP_VERSION = '0.3.0'
 
-const QUESTION_TYPES: QuestionType[] = ['计算题', '应用题', '图形题', '填空题', '选择题', '其他']
+const QUESTION_TYPES: QuestionType[] = ALL_QUESTION_TYPES
 const JUDGEMENTS: Judgement[] = ['正确', '错误', '部分正确', '无法判断', '需家长确认']
 const REVIEW_STATUSES: ReviewStatus[] = ['未复习', '已复习', '已掌握']
-const ERROR_CAUSES: ErrorCause[] = [
-  '题意没读懂',
-  '计算错误',
-  '单位错误',
-  '公式/方法不会',
-  '粗心漏写',
-  '概念不清',
-  '其他',
-]
+const ERROR_CAUSES: ErrorCause[] = ALL_ERROR_CAUSES
 
 // 内存单例缓存，保证同步组件渲染毫秒级响应
 let cachedRecords: StudyRecord[] | null = null
@@ -104,10 +103,12 @@ function writeJson(key: string, value: unknown): void {
 
 export function sanitizeRecord(raw: unknown): StudyRecord {
   const item = raw && typeof raw === 'object' ? (raw as Partial<StudyRecord>) : {}
-  const knowledgePoint = asString(item.knowledgePoint, '综合与实践')
+  const subject = parseSubjectId(item.subject)
+  const knowledgePoint = asString(item.knowledgePoint, defaultKnowledgeName(subject))
   const knowledgePoints = asStringArray(item.knowledgePoints)
   return {
     id: asString(item.id) || `q_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    subject,
     createdAt: asString(item.createdAt) || new Date().toISOString(),
     questionText: asString(item.questionText),
     questionType: pickEnum(item.questionType, QUESTION_TYPES, '其他'),
@@ -122,11 +123,13 @@ export function sanitizeRecord(raw: unknown): StudyRecord {
 
 export function sanitizeWrongQuestion(raw: unknown): WrongQuestion {
   const item = raw && typeof raw === 'object' ? (raw as Partial<WrongQuestion>) : {}
-  const knowledgePoint = asString(item.knowledgePoint, '综合与实践')
+  const subject = parseSubjectId(item.subject)
+  const knowledgePoint = asString(item.knowledgePoint, defaultKnowledgeName(subject))
   const knowledgePoints = asStringArray(item.knowledgePoints)
   const errorCause = pickEnum(item.errorCause, ERROR_CAUSES, '其他')
   return {
     id: asString(item.id) || `q_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    subject,
     imageDataUrl: asString(item.imageDataUrl),
     originalText: asString(item.originalText),
     correctedText: asString(item.correctedText),
@@ -136,7 +139,7 @@ export function sanitizeWrongQuestion(raw: unknown): WrongQuestion {
     stepByStep: asStringArray(item.stepByStep),
     knowledgePoint,
     knowledgePoints: knowledgePoints.length > 0 ? knowledgePoints : [knowledgePoint],
-    textbookUnit: asString(item.textbookUnit, '人教版四年级上册'),
+    textbookUnit: asString(item.textbookUnit, defaultTextbookUnit(subject)),
     errorCause: asString(item.errorCause) ? errorCause : '',
     errorCauseNote: asString(item.errorCauseNote),
     savedAt: asString(item.savedAt) || new Date().toISOString(),

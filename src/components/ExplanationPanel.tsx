@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { askedQuestionLabel, knownConditionsLabel } from '../data/subjects'
 import type { ExplanationMode, RecognitionResult } from '../types'
 import { isSpeechSupported, speakText, stopSpeech } from '../utils/speech'
 import MathView from './MathView'
@@ -94,7 +95,7 @@ export default function ExplanationPanel({
 
         {(result.question_type === '应用题' || result.known_conditions.length > 0) && (
           <div className="rounded-2xl bg-[#fbfaf5] p-4 border border-[#eee7d8]">
-            <p className="font-semibold text-[#2f5d50]">📋 提取已知条件与问题：</p>
+            <p className="font-semibold text-[#2f5d50]">📋 {knownConditionsLabel(result.subject)}：</p>
             <ul className="mt-1.5 list-disc pl-5 space-y-1">
               {(result.known_conditions.length > 0
                 ? result.known_conditions
@@ -107,7 +108,7 @@ export default function ExplanationPanel({
             </ul>
             {result.asked_question && (
               <p className="mt-2 text-sm text-[#9a6b4a]">
-                <strong>要求解的是：</strong>
+                <strong>{askedQuestionLabel(result.subject)}</strong>
                 <MathView text={result.asked_question} as="span" />
               </p>
             )}
@@ -120,7 +121,11 @@ export default function ExplanationPanel({
             <ol className="mt-2 list-decimal space-y-2 pl-5 text-[#78350f]">
               {(result.hints.length > 0
                 ? result.hints
-                : ['先读题，圈出已知数字和单位。', '想一想用加法、减法、乘法还是除法。', '算完后估算一下答案是否合理。']
+                : result.subject === 'chinese'
+                  ? ['先读题，圈出要写的字或要找的句子。', '想一想这题在问什么，到课文或词语里哪里找。', '写完后自己读一遍，看看通不通。']
+                  : result.subject === 'english'
+                    ? ['先看图和题干，圈出认识的单词。', '想一想这句是在问还是在答。', '写完后检查拼写和句首大写。']
+                    : ['先读题，圈出已知数字和单位。', '想一想用加法、减法、乘法还是除法。', '算完后估算一下答案是否合理。']
               ).map((item) => (
                 <li key={item}>
                   <MathView text={item} as="span" />
@@ -133,11 +138,13 @@ export default function ExplanationPanel({
           </div>
         ) : (
           <div className="rounded-2xl bg-[#f0fdf4] p-4 border border-[#bbf7d0] space-y-3">
-            <p className="font-bold text-[#166534]">📝 详细解题步骤：</p>
+            <p className="font-bold text-[#166534]">
+              {result.subject === 'math' ? '📝 详细解题步骤：' : '📝 对照讲解：'}
+            </p>
             <ol className="list-decimal space-y-2 pl-5 text-[#14532d]">
               {(result.step_by_step.length > 0
                 ? result.step_by_step
-                : ['请家长根据四年级所学方法，和孩子一起写出规范步骤。']
+                : ['请家长先和孩子一起看题目，再对照参考说法。']
               ).map((item) => (
                 <li key={item}>
                   <MathView text={item} as="span" />

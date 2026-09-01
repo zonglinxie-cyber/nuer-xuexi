@@ -10,6 +10,7 @@ import {
   loadWrongQuestions,
   upsertWrongQuestion,
 } from '../services/storageService'
+import { parseSubjectId, SUBJECT_LABELS } from '../data/subjects'
 import type { AppNotice, ReviewStatus } from '../types'
 import { formatDateTime } from '../utils/format'
 import { isSpeechSupported, speakText, stopSpeech } from '../utils/speech'
@@ -173,7 +174,7 @@ export default function WrongDetailPage() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#f0ece1] pb-3">
           <div className="flex items-center gap-2">
             <span className="rounded-lg bg-[#2f5d50]/10 px-2.5 py-1 text-xs font-bold text-[#2f5d50]">
-              {item.knowledgePoint}
+              {SUBJECT_LABELS[parseSubjectId(item.subject)]} · {item.knowledgePoint}
             </span>
             <span className="text-xs text-[#66756c]">{item.textbookUnit}</span>
           </div>

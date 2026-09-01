@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { parseSubjectId, printSheetTitle } from '../data/subjects'
 import type { WrongQuestion } from '../types'
 import MathView from './MathView'
 
@@ -9,7 +10,10 @@ interface PrintSheetModalProps {
 
 export default function PrintSheetModal({ questions, onClose }: PrintSheetModalProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>(() => questions.map((q) => q.id))
-  const [paperTitle, setPaperTitle] = useState('四年级数学错题专项重做练习单')
+  const [paperTitle, setPaperTitle] = useState(() => {
+    const subjects = new Set(questions.map((item) => parseSubjectId(item.subject)))
+    return subjects.size === 1 ? printSheetTitle([...subjects][0]) : printSheetTitle('all')
+  })
   const [includeImage, setIncludeImage] = useState(false)
   const [showAnswerKey, setShowAnswerKey] = useState(false)
 
@@ -159,7 +163,7 @@ export default function PrintSheetModal({ questions, onClose }: PrintSheetModalP
 
             {/* 试卷说明 */}
             <div className="my-3 text-xs text-gray-500 italic">
-              * 温馨提示：认真审题，细心计算，书写整洁规范。
+              * 温馨提示：认真审题，先自己做一遍，书写整洁规范。
             </div>
 
             {/* 题目列表 */}

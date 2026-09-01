@@ -58,7 +58,7 @@ export default function RewardBadge({ className = '' }: { className?: string }) 
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-[#f0ece1] pb-3">
-              <h3 className="text-xl font-bold text-[#243026]">🏆 我的数学荣誉馆</h3>
+              <h3 className="text-xl font-bold text-[#243026]">🏆 我的学习荣誉馆</h3>
               <button
                 type="button"
                 className="text-[#8c9c93] hover:text-[#243026] text-xl"

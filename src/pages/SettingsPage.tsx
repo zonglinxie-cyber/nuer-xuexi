@@ -59,7 +59,7 @@ export default function SettingsPage() {
   }
 
   function handleExport() {
-    downloadJson(`四年级数学学习助手完整备份-${new Date().toISOString().slice(0, 10)}.json`, exportBackup())
+    downloadJson(`四年级学习助手完整备份-${new Date().toISOString().slice(0, 10)}.json`, exportBackup())
     setNotice({ type: 'success', message: '已成功导出学习记录与错题本备份（包含原图）。' })
   }
 
@@ -94,7 +94,7 @@ export default function SettingsPage() {
       <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 border border-[#ece6d8]">
         <h2 className="text-lg font-bold text-[#243026] sm:text-xl">⚙️ AI 模型配置</h2>
         <p className="mt-2 text-sm leading-6 text-[#4a5850]">
-          请填写您自己的 API Key。支持 OpenAI 官方以及各类兼容接口（如通义千问、DeepSeek、Kimi 等多模态模型）。
+          请填写您自己的 API Key。支持 OpenAI 官方以及各类兼容接口。火山引擎通常不能被网页直接调用，请用允许网页访问的兼容地址。
         </p>
         <form className="mt-5 space-y-4" onSubmit={handleSave}>
           <Field label="API Key" hint="仅保存在本机浏览器，不上传任何中间服务器。">
@@ -117,7 +117,7 @@ export default function SettingsPage() {
           </Field>
           <Field
             label="接口地址"
-            hint="默认 OpenAI 官方地址。如使用第三方兼容平台，请填写其提供的 BaseUrl（末尾不带 /chat/completions）。"
+            hint="默认 OpenAI 官方地址。如用第三方兼容平台，填写它提供的 BaseUrl（末尾不要带 /chat/completions）。火山引擎等国内接口通常不能被 GitHub 网页直接调用。"
           >
             <input
               className={inputClass}

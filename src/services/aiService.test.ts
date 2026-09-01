@@ -51,6 +51,22 @@ describe('normalizeRecognition', () => {
     })
     expect(result.knowledge_points).toEqual(['角的度量'])
     expect(result.step_by_step).toEqual([])
+    expect(result.subject).toBe('math')
+  })
+
+  it('keeps chinese knowledge points instead of falling back to math', () => {
+    const result = normalizeRecognition(
+      {
+        recognized_text: '看拼音写词语：huā',
+        knowledge_point: '拼音与字音',
+        question_type: '看拼音写字',
+      },
+      'chinese',
+    )
+    expect(result.subject).toBe('chinese')
+    expect(result.knowledge_point).toBe('拼音与字音')
+    expect(result.knowledge_points).toEqual(['拼音与字音'])
+    expect(result.question_type).toBe('看拼音写字')
   })
 })
 

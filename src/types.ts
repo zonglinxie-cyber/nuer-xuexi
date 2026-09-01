@@ -1,5 +1,20 @@
+export type SubjectId = 'math' | 'chinese' | 'english'
 export type ConfidenceLevel = '高' | '中' | '低'
-export type QuestionType = '计算题' | '应用题' | '图形题' | '填空题' | '选择题' | '其他'
+export type QuestionType =
+  | '计算题'
+  | '应用题'
+  | '图形题'
+  | '填空题'
+  | '选择题'
+  | '看拼音写字'
+  | '组词造句'
+  | '课文/默写'
+  | '阅读理解'
+  | '写话'
+  | '单词拼写'
+  | '句型'
+  | '抄写'
+  | '其他'
 export type Judgement = '正确' | '错误' | '部分正确' | '无法判断' | '需家长确认'
 export type ReviewStatus = '未复习' | '已复习' | '已掌握'
 export type ExplanationMode = 'guide' | 'answer'
@@ -11,10 +26,19 @@ export type ErrorCause =
   | '公式/方法不会'
   | '粗心漏写'
   | '概念不清'
+  | '错别字'
+  | '拼音错误'
+  | '不会表达'
+  | '搭配不当'
+  | '没抓住关键'
+  | '单词拼错'
+  | '语法/句型'
+  | '大小写'
   | '其他'
 
 export interface KnowledgePoint {
   id: string
+  subject: SubjectId
   name: string
   unit: string
   description: string
@@ -27,6 +51,7 @@ export interface AiSettings {
 }
 
 export interface RecognitionResult {
+  subject: SubjectId
   recognized_text: string
   confidence_level: ConfidenceLevel
   question_type: QuestionType
@@ -47,6 +72,7 @@ export interface RecognitionResult {
 
 export interface DraftQuestion {
   id: string
+  subject: SubjectId
   imageDataUrl: string
   createdAt: string
   originalText: string
@@ -61,6 +87,7 @@ export interface DraftQuestion {
 
 export interface WrongQuestion {
   id: string
+  subject: SubjectId
   imageDataUrl: string
   originalText: string
   correctedText: string
@@ -82,6 +109,7 @@ export interface WrongQuestion {
 
 export interface StudyRecord {
   id: string
+  subject: SubjectId
   createdAt: string
   questionText: string
   questionType: QuestionType
@@ -103,6 +131,7 @@ export interface AppBackup {
 
 export interface VariantQuestion {
   id: string
+  subject: SubjectId
   originalQuestionId: string
   questionText: string
   knowledgePoint: string
@@ -113,11 +142,11 @@ export interface VariantQuestion {
 }
 
 export interface UserRewardStats {
-  stars: number // 总获得的星星（攻克错题或做对变式题获得）
-  streakDays: number // 连续学习天数
-  lastActiveDate: string // YYYY-MM-DD
-  masteredCount: number // 已掌握错题数量
-  badges: string[] // 已解锁勋章列表
+  stars: number
+  streakDays: number
+  lastActiveDate: string
+  masteredCount: number
+  badges: string[]
 }
 
 export interface MultiRecognitionResult {

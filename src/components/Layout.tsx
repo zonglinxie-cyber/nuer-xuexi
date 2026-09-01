@@ -14,8 +14,8 @@ export default function Layout() {
       <header className="sticky top-0 z-20 border-b border-[#d9d2c3] bg-[#fbfaf5] pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:py-4">
           <div className="min-w-0">
-            <p className="hidden text-sm text-[#5d6b61] sm:block">家庭学习辅助 · 人教版四年级上册数学</p>
-            <h1 className="truncate text-lg font-semibold sm:text-2xl">四年级数学学习助手</h1>
+            <p className="hidden text-sm text-[#5d6b61] sm:block">家庭学习陪伴 · 四年级数语英错题整理</p>
+            <h1 className="truncate text-lg font-semibold sm:text-2xl">四年级学习助手</h1>
           </div>
           <p className="hidden max-w-xs rounded-xl bg-[#efe8d8] px-3 py-2 text-xs leading-5 text-[#5d4a28] sm:block">
             家长陪同辅导 · 支持整页拍照 · A4 错题卷打印

@@ -1,4 +1,15 @@
-import { KNOWLEDGE_POINTS, matchKnowledgePoints } from '../data/knowledgePoints'
+import { findKnowledgePoint, matchKnowledgePoints } from '../data/knowledge'
+import { ALL_QUESTION_TYPES, defaultKnowledgeName, defaultTextbookUnit } from '../data/subjects'
+import {
+  CHINESE_TUTOR_SYSTEM_PROMPT,
+  CHINESE_TUTOR_USER_PROMPT,
+  CHINESE_VARIANT_SYSTEM_PROMPT,
+} from '../prompts/chineseTutorPrompt'
+import {
+  ENGLISH_TUTOR_SYSTEM_PROMPT,
+  ENGLISH_TUTOR_USER_PROMPT,
+  ENGLISH_VARIANT_SYSTEM_PROMPT,
+} from '../prompts/englishTutorPrompt'
 import {
   MATH_TUTOR_SYSTEM_PROMPT,
   MATH_TUTOR_USER_PROMPT,
@@ -11,11 +22,12 @@ import type {
   MultiRecognitionResult,
   QuestionType,
   RecognitionResult,
+  SubjectId,
   VariantQuestion,
   WrongQuestion,
 } from '../types'
 import { dataUrlToBase64 } from '../utils/image'
-import { hasApiKey, loadSettings, resolveApiBaseUrl } from './settingsService'
+import { hasApiKey, isOfficialOpenAiBase, isVolcengineBase, loadSettings, resolveApiBaseUrl } from './settingsService'
 
 export class AiServiceError extends Error {
   readonly code: string
@@ -28,12 +40,22 @@ export class AiServiceError extends Error {
 }
 
 const CONFIDENCE: ConfidenceLevel[] = ['高', '中', '低']
-const QUESTION_TYPES: QuestionType[] = ['计算题', '应用题', '图形题', '填空题', '选择题', '其他']
+const QUESTION_TYPES: QuestionType[] = ALL_QUESTION_TYPES
 const JUDGEMENTS: Judgement[] = ['正确', '错误', '部分正确', '无法判断', '需家长确认']
 const RECOGNIZE_TIMEOUT_MS = 75_000
 const TEST_TIMEOUT_MS = 15_000
-const CORS_MESSAGE =
+const OPENAI_CORS_MESSAGE =
   '浏览器没能连上这个接口。官方 OpenAI 通常不允许网页直接调用。本地用 npm run dev 时，官方地址会自动走代理；如果是打开打包后的网页，请改用兼容接口。'
+
+export function connectErrorMessage(baseUrl: string): string {
+  if (isVolcengineBase(baseUrl)) {
+    return '浏览器没能连上火山引擎接口。这类接口通常不允许网页直接调用，服务范围也主要在中国大陆。请换一个允许网页调用的兼容接口。'
+  }
+  if (isOfficialOpenAiBase(baseUrl)) {
+    return OPENAI_CORS_MESSAGE
+  }
+  return '浏览器没能连上这个接口。可能是网页跨域被拦，或当前网络到该服务不通。请换一个允许网页直接调用的兼容地址。'
+}
 
 function asString(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value.trim() : fallback
@@ -72,18 +94,41 @@ export function extractJson(text: string): unknown {
   }
 }
 
-export function normalizeRecognition(raw: unknown): RecognitionResult {
+function tutorPrompts(subject: SubjectId): { system: string; user: string; variant: string } {
+  if (subject === 'chinese') {
+    return {
+      system: CHINESE_TUTOR_SYSTEM_PROMPT,
+      user: CHINESE_TUTOR_USER_PROMPT,
+      variant: CHINESE_VARIANT_SYSTEM_PROMPT,
+    }
+  }
+  if (subject === 'english') {
+    return {
+      system: ENGLISH_TUTOR_SYSTEM_PROMPT,
+      user: ENGLISH_TUTOR_USER_PROMPT,
+      variant: ENGLISH_VARIANT_SYSTEM_PROMPT,
+    }
+  }
+  return {
+    system: MATH_TUTOR_SYSTEM_PROMPT,
+    user: MATH_TUTOR_USER_PROMPT,
+    variant: MATH_VARIANT_SYSTEM_PROMPT,
+  }
+}
+
+export function normalizeRecognition(raw: unknown, subject: SubjectId = 'math'): RecognitionResult {
   const data = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
   const knowledgePoints = matchKnowledgePoints(
     asStringArray(data.knowledge_points).concat(
       asString(data.knowledge_point) ? [asString(data.knowledge_point)] : [],
     ),
+    subject,
   )
-  const knowledgePoint = knowledgePoints[0] || asString(data.knowledge_point) || '综合与实践'
+  const knowledgePoint = knowledgePoints[0] || asString(data.knowledge_point) || defaultKnowledgeName(subject)
   const warning = asString(data.warning)
   const recognizedText = asString(data.recognized_text)
   const confidence = pickEnum(data.confidence_level, CONFIDENCE, warning || !recognizedText ? '低' : '中')
-  let judgement = pickEnum(data.is_correct, JUDGEMENTS, '需家长确认')
+  const judgement = pickEnum(data.is_correct, JUDGEMENTS, '需家长确认')
   const needHumanCheck =
     Boolean(data.need_human_check) ||
     judgement === '无法判断' ||
@@ -93,10 +138,11 @@ export function normalizeRecognition(raw: unknown): RecognitionResult {
 
   const textbookUnit =
     asString(data.textbook_unit) ||
-    KNOWLEDGE_POINTS.find((item) => item.name === knowledgePoint)?.unit ||
-    '人教版四年级上册'
+    findKnowledgePoint(knowledgePoint, subject)?.unit ||
+    defaultTextbookUnit(subject)
 
   return {
+    subject,
     recognized_text: recognizedText || '未能完整识别题目，请家长核对或重新拍照。',
     confidence_level: confidence,
     question_type: pickEnum(data.question_type, QUESTION_TYPES, '其他'),
@@ -116,11 +162,11 @@ export function normalizeRecognition(raw: unknown): RecognitionResult {
   }
 }
 
-export function normalizeMultiRecognition(raw: unknown): MultiRecognitionResult {
+export function normalizeMultiRecognition(raw: unknown, subject: SubjectId = 'math'): MultiRecognitionResult {
   const data = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
 
   if (Array.isArray(data.questions) && data.questions.length > 0) {
-    const list = data.questions.map(normalizeRecognition)
+    const list = data.questions.map((item) => normalizeRecognition(item, subject))
     return {
       isMulti: list.length > 1,
       overallNotes: asString(data.overall_notes),
@@ -128,8 +174,7 @@ export function normalizeMultiRecognition(raw: unknown): MultiRecognitionResult 
     }
   }
 
-  // 单题回退
-  const single = normalizeRecognition(raw)
+  const single = normalizeRecognition(raw, subject)
   return {
     isMulti: false,
     overallNotes: '',
@@ -148,6 +193,12 @@ export function isLikelyNetworkOrCorsError(error: unknown): boolean {
 
 function friendlyHttpError(status: number, body: string): AiServiceError {
   if (status === 401 || status === 403) {
+    if (/澳门|海外|境外|region|not available in|unsupported region|中国大陆/i.test(body)) {
+      return new AiServiceError(
+        '这个接口当前地区不可用。部分国内云服务只在中国大陆开放，请换一个你所在地区能访问的兼容接口。',
+        'region',
+      )
+    }
     return new AiServiceError('API Key 无效或没有权限，请到设置页检查。', 'auth')
   }
   if (status === 404) {
@@ -186,7 +237,11 @@ function wrapAbort(external: AbortSignal | undefined, timeoutMs: number) {
   }
 }
 
-function mapFetchError(error: unknown, session: { wasCancelled: () => boolean; wasTimedOut: () => boolean }): never {
+function mapFetchError(
+  error: unknown,
+  session: { wasCancelled: () => boolean; wasTimedOut: () => boolean },
+  baseUrl: string,
+): never {
   if (error instanceof AiServiceError) throw error
   if (session.wasCancelled()) {
     throw new AiServiceError('已取消识别。', 'cancelled')
@@ -195,7 +250,7 @@ function mapFetchError(error: unknown, session: { wasCancelled: () => boolean; w
     throw new AiServiceError('识别超时。图片较大或网络较慢时请再试一次，也可以换一张更小的照片。', 'timeout')
   }
   if (isLikelyNetworkOrCorsError(error)) {
-    throw new AiServiceError(CORS_MESSAGE, 'cors')
+    throw new AiServiceError(connectErrorMessage(baseUrl), 'cors')
   }
   throw new AiServiceError('AI 请求失败，请检查网络、接口地址和模型名称。', 'request_failed')
 }
@@ -224,8 +279,9 @@ async function readContent(rawText: string): Promise<string> {
   return ''
 }
 
-export async function recognizeMathQuestions(
+export async function recognizeQuestions(
   imageDataUrl: string,
+  subject: SubjectId = 'math',
   settings?: AiSettings,
   signal?: AbortSignal,
 ): Promise<MultiRecognitionResult> {
@@ -234,6 +290,7 @@ export async function recognizeMathQuestions(
     throw new AiServiceError('还没有填写 API Key。请先到设置页填写后再识别。', 'missing_key')
   }
 
+  const prompts = tutorPrompts(subject)
   const { mime, base64 } = dataUrlToBase64(imageDataUrl)
   const session = wrapAbort(signal, RECOGNIZE_TIMEOUT_MS)
   const useJsonMode = modelSupportsJsonObject(current.model)
@@ -243,11 +300,11 @@ export async function recognizeMathQuestions(
       model: current.model.trim(),
       temperature: 0.2,
       messages: [
-        { role: 'system', content: MATH_TUTOR_SYSTEM_PROMPT },
+        { role: 'system', content: prompts.system },
         {
           role: 'user',
           content: [
-            { type: 'text', text: MATH_TUTOR_USER_PROMPT },
+            { type: 'text', text: prompts.user },
             {
               type: 'image_url',
               image_url: {
@@ -291,12 +348,20 @@ export async function recognizeMathQuestions(
       throw new AiServiceError('AI 没有返回识别结果。请换一张更清晰的图片，或稍后重试。', 'empty')
     }
 
-    return normalizeMultiRecognition(extractJson(text))
+    return normalizeMultiRecognition(extractJson(text), subject)
   } catch (error) {
-    mapFetchError(error, session)
+    mapFetchError(error, session, current.baseUrl)
   } finally {
     session.dispose()
   }
+}
+
+export async function recognizeMathQuestions(
+  imageDataUrl: string,
+  settings?: AiSettings,
+  signal?: AbortSignal,
+): Promise<MultiRecognitionResult> {
+  return recognizeQuestions(imageDataUrl, 'math', settings, signal)
 }
 
 export async function recognizeMathQuestion(
@@ -304,8 +369,8 @@ export async function recognizeMathQuestion(
   settings?: AiSettings,
   signal?: AbortSignal,
 ): Promise<RecognitionResult> {
-  const multi = await recognizeMathQuestions(imageDataUrl, settings, signal)
-  return multi.questions[0] || normalizeRecognition({})
+  const multi = await recognizeQuestions(imageDataUrl, 'math', settings, signal)
+  return multi.questions[0] || normalizeRecognition({}, 'math')
 }
 
 export async function generateVariantQuestions(
@@ -322,10 +387,13 @@ export async function generateVariantQuestions(
   const session = wrapAbort(signal, RECOGNIZE_TIMEOUT_MS)
   const useJsonMode = modelSupportsJsonObject(current.model)
 
-  const prompt = `请针对以下四年级数学错题，生成 ${count} 道举一反三的同类变式题：
+  const subject = wrongQuestion.subject || 'math'
+  const subjectLabel = subject === 'chinese' ? '语文' : subject === 'english' ? '英语' : '数学'
+  const defaultCause = subject === 'chinese' ? '错别字' : subject === 'english' ? '单词拼错' : '计算错误'
+  const prompt = `请针对以下四年级${subjectLabel}错题，生成 ${count} 道举一反三的同类变式题：
 【错题原题】：${wrongQuestion.correctedText || wrongQuestion.originalText}
 【考查知识点】：${wrongQuestion.knowledgePoint}
-【孩子错因】：${wrongQuestion.errorCause || '计算错误'} ${wrongQuestion.errorCauseNote ? `(${wrongQuestion.errorCauseNote})` : ''}
+【孩子错因】：${wrongQuestion.errorCause || defaultCause} ${wrongQuestion.errorCauseNote ? `(${wrongQuestion.errorCauseNote})` : ''}
 【正确解法与参考答案】：${wrongQuestion.correctAnswer || ''}
 
 请按系统要求返回 JSON 格式，包含 3 道变式题。`
@@ -334,7 +402,7 @@ export async function generateVariantQuestions(
     model: current.model.trim(),
     temperature: 0.3,
     messages: [
-      { role: 'system', content: MATH_VARIANT_SYSTEM_PROMPT },
+      { role: 'system', content: tutorPrompts(subject).variant },
       { role: 'user', content: prompt },
     ],
   }
@@ -363,6 +431,7 @@ export async function generateVariantQuestions(
 
     return variantsRaw.map((v: any, index: number): VariantQuestion => ({
       id: `var_${Date.now()}_${index + 1}`,
+      subject,
       originalQuestionId: wrongQuestion.id,
       questionText: asString(v.question_text || v.questionText || `变式题 ${index + 1}`),
       knowledgePoint: asString(v.knowledge_point || wrongQuestion.knowledgePoint),
@@ -372,7 +441,7 @@ export async function generateVariantQuestions(
       explanation: asString(v.explanation),
     }))
   } catch (error) {
-    mapFetchError(error, session)
+    mapFetchError(error, session, current.baseUrl)
   } finally {
     session.dispose()
   }
@@ -405,7 +474,7 @@ export async function testAiConnection(settings?: AiSettings, signal?: AbortSign
       throw friendlyHttpError(response.status, rawText)
     }
   } catch (error) {
-    mapFetchError(error, session)
+    mapFetchError(error, session, current.baseUrl)
   } finally {
     session.dispose()
   }

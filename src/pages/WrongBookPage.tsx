@@ -4,30 +4,44 @@ import Field, { inputClass } from '../components/Field'
 import MathView from '../components/MathView'
 import PrintSheetModal from '../components/PrintSheetModal'
 import VariantPracticeModal from '../components/VariantPracticeModal'
-import { KNOWLEDGE_POINT_NAMES } from '../data/knowledgePoints'
+import { getKnowledgePointNames } from '../data/knowledge'
+import { parseSubjectId, SUBJECT_IDS, SUBJECT_LABELS } from '../data/subjects'
 import { loadWrongQuestions } from '../services/storageService'
-import type { ReviewStatus, WrongQuestion } from '../types'
+import type { ReviewStatus, SubjectId, WrongQuestion } from '../types'
 import { formatDateTime } from '../utils/format'
 
 const statuses: Array<ReviewStatus | '全部'> = ['全部', '未复习', '已复习', '已掌握']
 
 export default function WrongBookPage() {
   const [keyword, setKeyword] = useState('')
+  const [subjectFilter, setSubjectFilter] = useState<SubjectId | '全部'>('全部')
   const [knowledge, setKnowledge] = useState('全部')
   const [status, setStatus] = useState<ReviewStatus | '全部'>('全部')
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [selectedVariantQuestion, setSelectedVariantQuestion] = useState<WrongQuestion | null>(null)
 
   const items = loadWrongQuestions()
+  const scopedItems = useMemo(
+    () => items.filter((item) => (subjectFilter === '全部' ? true : parseSubjectId(item.subject) === subjectFilter)),
+    [items, subjectFilter],
+  )
 
   const unmasteredCount = useMemo(() => {
     return items.filter((item) => item.reviewStatus !== '已掌握').length
   }, [items])
 
+  const knowledgeNames = useMemo(() => {
+    if (subjectFilter === '全部') {
+      return Array.from(new Set(items.flatMap((item) => [item.knowledgePoint, ...item.knowledgePoints]))).filter(Boolean)
+    }
+    return getKnowledgePointNames(subjectFilter)
+  }, [items, subjectFilter])
+
   const filtered = useMemo(() => {
     return items
       .slice()
       .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+      .filter((item) => (subjectFilter === '全部' ? true : parseSubjectId(item.subject) === subjectFilter))
       .filter((item) =>
         knowledge === '全部'
           ? true
@@ -38,7 +52,7 @@ export default function WrongBookPage() {
         const hay = `${item.correctedText} ${item.originalText} ${item.studentAnswer} ${item.correctAnswer} ${item.notes}`
         return hay.toLowerCase().includes(keyword.trim().toLowerCase())
       })
-  }, [items, keyword, knowledge, status])
+  }, [items, keyword, knowledge, status, subjectFilter])
 
   return (
     <div className="space-y-6">
@@ -78,9 +92,34 @@ export default function WrongBookPage() {
 
         {/* 快速状态筛选 Chips */}
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[#f0ece1] pt-4">
+          {(['全部', ...SUBJECT_IDS] as const).map((id) => {
+            const count =
+              id === '全部' ? items.length : items.filter((item) => parseSubjectId(item.subject) === id).length
+            const isActive = subjectFilter === id
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setSubjectFilter(id)
+                  setKnowledge('全部')
+                }}
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                  isActive
+                    ? 'bg-[#2f5d50] text-white shadow-xs'
+                    : 'bg-[#fbfaf5] border border-[#e0d9cb] text-[#66756c] hover:bg-[#f5ede1]'
+                }`}
+              >
+                {id === '全部' ? '全部学科' : SUBJECT_LABELS[id]} ({count})
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           {statuses.map((s) => {
             const count =
-              s === '全部' ? items.length : items.filter((i) => i.reviewStatus === s).length
+              s === '全部' ? scopedItems.length : scopedItems.filter((i) => i.reviewStatus === s).length
             const isActive = status === s
             return (
               <button
@@ -104,7 +143,7 @@ export default function WrongBookPage() {
           <Field label="搜索题目">
             <input
               className={inputClass}
-              placeholder="输入关键词、算式或知识点…"
+              placeholder="输入关键词、题目或知识点…"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
             />
@@ -115,8 +154,8 @@ export default function WrongBookPage() {
               value={knowledge}
               onChange={(event) => setKnowledge(event.target.value)}
             >
-              <option value="全部">全部知识点 ({items.length})</option>
-              {KNOWLEDGE_POINT_NAMES.map((name) => {
+              <option value="全部">全部知识点 ({scopedItems.length})</option>
+              {knowledgeNames.map((name) => {
                 const count = items.filter(
                   (i) => i.knowledgePoint === name || i.knowledgePoints.includes(name),
                 ).length
@@ -148,7 +187,7 @@ export default function WrongBookPage() {
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#f5f1e8] pb-3">
                 <div className="flex items-center gap-2">
                   <span className="rounded-lg bg-[#2f5d50]/10 px-2.5 py-1 text-xs font-bold text-[#2f5d50]">
-                    {item.knowledgePoint}
+                    {SUBJECT_LABELS[parseSubjectId(item.subject)]} · {item.knowledgePoint}
                   </span>
                   <span className="text-xs text-[#8c9c93]">{item.textbookUnit}</span>
                 </div>

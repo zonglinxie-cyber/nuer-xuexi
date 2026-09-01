@@ -68,6 +68,18 @@ describe('sanitizeRecord', () => {
     expect(record.judgement).toBe('无法判断')
     expect(record.questionType).toBe('其他')
     expect(record.knowledgePoints.length).toBeGreaterThan(0)
+    expect(record.subject).toBe('math')
+  })
+
+  it('keeps chinese subject and question type from new backups', () => {
+    const record = sanitizeRecord({
+      subject: 'chinese',
+      questionType: '看拼音写字',
+      knowledgePoint: '形近字',
+    })
+    expect(record.subject).toBe('chinese')
+    expect(record.questionType).toBe('看拼音写字')
+    expect(record.knowledgePoint).toBe('形近字')
   })
 })
 
@@ -81,6 +93,7 @@ describe('sanitizeWrongQuestion', () => {
     expect(item.reviewStatus).toBe('未复习')
     expect(item.imageDataUrl).toBe('')
     expect(item.knowledgePoints).toEqual(['三位数乘两位数'])
+    expect(item.subject).toBe('math')
   })
 })
 
@@ -102,6 +115,8 @@ describe('parseBackup / importBackup', () => {
 
     const imported = await importBackup(payload)
     expect(imported.records[0]?.id).toBe('a')
+    expect(imported.records[0]?.subject).toBe('math')
+    expect(imported.wrongQuestions[0]?.subject).toBe('math')
     expect(loadRecords()).toHaveLength(1)
   })
 })

@@ -1,24 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useBlocker } from 'react-router-dom'
+import { useBlocker, useSearchParams } from 'react-router-dom'
 import ExplanationPanel from '../components/ExplanationPanel'
 import ImageUploader from '../components/ImageUploader'
 import NoticeBanner from '../components/NoticeBanner'
 import PrivacyNotice from '../components/PrivacyNotice'
 import ResultEditor from '../components/ResultEditor'
-import { AiServiceError, recognizeMathQuestions } from '../services/aiService'
-import { hasApiKey, loadSettings } from '../services/settingsService'
+import { defaultKnowledgeName, defaultTextbookUnit, parseSubjectId, SUBJECT_IDS, SUBJECT_LABELS } from '../data/subjects'
+import { AiServiceError, recognizeQuestions } from '../services/aiService'
+import { hasApiKey, loadLastSubject, loadSettings, saveLastSubject } from '../services/settingsService'
 import { upsertRecord, upsertWrongQuestion } from '../services/storageService'
-import type { AppNotice, DraftQuestion, ExplanationMode, RecognitionResult } from '../types'
+import type { AppNotice, DraftQuestion, ExplanationMode, RecognitionResult, SubjectId } from '../types'
 import { createId } from '../utils/id'
 
-function emptyDraft(imageDataUrl = '', initialResult?: RecognitionResult): DraftQuestion {
+function emptyDraft(imageDataUrl = '', initialResult?: RecognitionResult, subject: SubjectId = 'math'): DraftQuestion {
   const result: RecognitionResult = initialResult || {
+    subject,
     recognized_text: '',
     confidence_level: '低',
     question_type: '其他',
-    knowledge_point: '综合与实践',
-    knowledge_points: ['综合与实践'],
-    textbook_unit: '人教版四年级上册',
+    knowledge_point: defaultKnowledgeName(subject),
+    knowledge_points: [defaultKnowledgeName(subject)],
+    textbook_unit: defaultTextbookUnit(subject),
     student_answer: '',
     ai_answer: '',
     is_correct: '需家长确认',
@@ -33,6 +35,7 @@ function emptyDraft(imageDataUrl = '', initialResult?: RecognitionResult): Draft
 
   return {
     id: createId('q'),
+    subject: initialResult?.subject || subject,
     imageDataUrl,
     createdAt: new Date().toISOString(),
     parentConfirmed: false,
@@ -49,6 +52,7 @@ function emptyDraft(imageDataUrl = '', initialResult?: RecognitionResult): Draft
 function toRecord(draft: DraftQuestion, parentConfirmed: boolean, savedAsWrong: boolean) {
   return {
     id: draft.id,
+    subject: draft.subject,
     createdAt: draft.createdAt,
     questionText: draft.result.recognized_text,
     questionType: draft.result.question_type,
@@ -62,7 +66,9 @@ function toRecord(draft: DraftQuestion, parentConfirmed: boolean, savedAsWrong: 
 }
 
 export default function HomeworkPage() {
-  const [drafts, setDrafts] = useState<DraftQuestion[]>([emptyDraft()])
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [subject, setSubject] = useState<SubjectId>(() => parseSubjectId(searchParams.get('subject'), loadLastSubject()))
+  const [drafts, setDrafts] = useState<DraftQuestion[]>(() => [emptyDraft('', undefined, subject)])
   const [activeIndex, setActiveIndex] = useState(0)
   const [hasResult, setHasResult] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -74,6 +80,15 @@ export default function HomeworkPage() {
       : { type: 'warning', message: '还没有填写 API Key。可以先上传图片预览，但识别前请先到设置页填写。' },
   )
   const abortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    const fromQuery = searchParams.get('subject')
+    if (!fromQuery) return
+    const next = parseSubjectId(fromQuery, subject)
+    if (next === subject) return
+    setSubject(next)
+    saveLastSubject(next)
+  }, [searchParams, subject])
 
   const currentDraft = drafts[activeIndex] || drafts[0]
   const dirty = Boolean(imageDataUrl || hasResult)
@@ -135,6 +150,18 @@ export default function HomeworkPage() {
     abortRef.current?.abort()
   }
 
+  function changeSubject(next: SubjectId) {
+    if (next === subject) return
+    if (hasResult && !confirmReplace()) return
+    setSubject(next)
+    saveLastSubject(next)
+    setSearchParams(next === 'math' ? {} : { subject: next }, { replace: true })
+    setDrafts([emptyDraft(imageDataUrl, undefined, next)])
+    setActiveIndex(0)
+    setHasResult(false)
+    setMode('guide')
+  }
+
   async function handleRecognize() {
     if (!imageDataUrl) {
       setNotice({ type: 'warning', message: '请先拍照或上传一张作业图片。' })
@@ -151,8 +178,8 @@ export default function HomeworkPage() {
     setNotice({ type: 'info', message: '正在智能识别整页题目，请稍候…' })
 
     try {
-      const multi = await recognizeMathQuestions(imageDataUrl, undefined, controller.signal)
-      const newDrafts = multi.questions.map((q) => emptyDraft(imageDataUrl, q))
+      const multi = await recognizeQuestions(imageDataUrl, subject, undefined, controller.signal)
+      const newDrafts = multi.questions.map((q) => emptyDraft(imageDataUrl, q, subject))
       setDrafts(newDrafts)
       setActiveIndex(0)
       setHasResult(true)
@@ -209,6 +236,7 @@ export default function HomeworkPage() {
       if (saveToWrong) {
         upsertWrongQuestion({
           id: nextDraft.id,
+          subject: nextDraft.subject,
           imageDataUrl: nextDraft.imageDataUrl,
           originalText: nextDraft.originalText || nextDraft.result.recognized_text,
           correctedText: nextDraft.result.recognized_text,
@@ -270,6 +298,7 @@ export default function HomeworkPage() {
       if (canArchiveWrong) {
         upsertWrongQuestion({
           id: confirmed.id,
+          subject: confirmed.subject,
           imageDataUrl: confirmed.imageDataUrl,
           originalText: confirmed.originalText || confirmed.result.recognized_text,
           correctedText: confirmed.result.recognized_text,
@@ -322,8 +351,25 @@ export default function HomeworkPage() {
       <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 border border-[#ece6d8]">
         <h2 className="text-lg font-bold text-[#243026] sm:text-xl">📸 拍照 / 上传整页作业</h2>
         <p className="mt-1.5 text-sm leading-6 text-[#4a5850]">
-          支持单题或整页多题识别。手机拍照请尽量光线充足、竖直平拍。
+          先选学科再识别。支持单题或整页多题。手机拍照请尽量光线充足、竖直平拍。
         </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {SUBJECT_IDS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              disabled={loading}
+              onClick={() => changeSubject(id)}
+              className={`rounded-xl px-4 py-2 text-sm font-bold transition-all ${
+                subject === id
+                  ? 'bg-[#2f5d50] text-white shadow-xs'
+                  : 'border border-[#e0d9cb] bg-[#fbfaf5] text-[#4a5850] hover:bg-[#f2eee4]'
+              }`}
+            >
+              {SUBJECT_LABELS[id]}
+            </button>
+          ))}
+        </div>
 
         <div className="mt-4">
           <ImageUploader
@@ -334,7 +380,7 @@ export default function HomeworkPage() {
               if (dataUrl && !confirmReplace()) return
               if (!dataUrl && dirty && !confirmReplace()) return
               setImageDataUrl(dataUrl)
-              setDrafts([emptyDraft(dataUrl)])
+              setDrafts([emptyDraft(dataUrl, undefined, subject)])
               setActiveIndex(0)
               setHasResult(false)
               setMode('guide')
@@ -349,7 +395,7 @@ export default function HomeworkPage() {
             disabled={loading}
             onClick={() => void handleRecognize()}
           >
-            {loading ? '🔍 正在智能识别与批改…' : '🚀 开始识别与批改'}
+            {loading ? '🔍 正在智能识别与批改…' : `开始识别${SUBJECT_LABELS[subject]}作业`}
           </button>
           {loading ? (
             <button
@@ -366,7 +412,7 @@ export default function HomeworkPage() {
               onClick={() => {
                 if (!confirmReplace()) return
                 setImageDataUrl('')
-                setDrafts([emptyDraft()])
+                setDrafts([emptyDraft('', undefined, subject)])
                 setActiveIndex(0)
                 setHasResult(false)
                 setMode('guide')
@@ -463,6 +509,7 @@ export default function HomeworkPage() {
                 notes={currentDraft.notes}
                 needReview={currentDraft.needReview}
                 onMetaChange={updateActiveMeta}
+                subject={currentDraft.subject}
               />
             </div>
           </section>

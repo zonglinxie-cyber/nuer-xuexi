@@ -1,6 +1,8 @@
-import type { AiSettings } from '../types'
+import { parseSubjectId } from '../data/subjects'
+import type { AiSettings, SubjectId } from '../types'
 
 const SETTINGS_KEY = 'grade4-math-helper-settings-v1'
+const LAST_SUBJECT_KEY = 'grade4-helper-last-subject-v1'
 
 export const OFFICIAL_OPENAI_BASE = 'https://api.openai.com/v1'
 export const LOCAL_OPENAI_PROXY_BASE = '/openai-proxy/v1'
@@ -15,6 +17,10 @@ export const DEFAULT_SETTINGS: AiSettings = {
 export function isOfficialOpenAiBase(baseUrl: string): boolean {
   const trimmed = baseUrl.trim().replace(/\/$/, '')
   return trimmed === OFFICIAL_OPENAI_BASE || trimmed === 'https://api.openai.com'
+}
+
+export function isVolcengineBase(baseUrl: string): boolean {
+  return /volces\.com|volcengine\.com|ark\.cn-|火山/i.test(baseUrl)
 }
 
 export function resolveApiBaseUrl(baseUrl: string): string {
@@ -56,4 +62,20 @@ export function saveSettings(settings: AiSettings): void {
 
 export function hasApiKey(settings = loadSettings()): boolean {
   return settings.apiKey.trim().length > 0
+}
+
+export function loadLastSubject(): SubjectId {
+  try {
+    return parseSubjectId(localStorage.getItem(LAST_SUBJECT_KEY), 'math')
+  } catch {
+    return 'math'
+  }
+}
+
+export function saveLastSubject(subject: SubjectId): void {
+  try {
+    localStorage.setItem(LAST_SUBJECT_KEY, subject)
+  } catch {
+    // ignore quota
+  }
 }

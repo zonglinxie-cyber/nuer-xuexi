@@ -1,8 +1,9 @@
-import { KNOWLEDGE_POINTS } from '../data/knowledgePoints'
+import { MATH_KNOWLEDGE_POINTS } from '../data/knowledge/math'
+import { SHARED_RECOGNITION_JSON_SCHEMA } from './sharedRecognitionSchema'
 
 export const MATH_TUTOR_PROMPT_VERSION = 'v0.2'
 
-const knowledgeList = KNOWLEDGE_POINTS.map(
+const knowledgeList = MATH_KNOWLEDGE_POINTS.map(
   (item) => `- ${item.name}（${item.unit}）`,
 ).join('\n')
 
@@ -22,30 +23,10 @@ export const MATH_TUTOR_SYSTEM_PROMPT = `你是一名温柔、耐心的小学数
 ${knowledgeList}
 
 JSON 输出格式模板：
-{
-  "is_multi": false,
-  "overall_notes": "",
-  "questions": [
-    {
-      "recognized_text": "识别出的题目完整文本，包含题号与题干（公式用 $ 包裹）",
-      "confidence_level": "高 | 中 | 低",
-      "question_type": "计算题 | 应用题 | 图形题 | 填空题 | 选择题 | 其他",
-      "knowledge_point": "最匹配的一个知识点（尽量从知识点列表匹配）",
-      "knowledge_points": ["相关知识点"],
-      "textbook_unit": "对应人教版四年级上册章节",
-      "student_answer": "图片中若有学生手写或答题笔迹则提取，没有则留空字符串",
-      "ai_answer": "参考正确答案",
-      "is_correct": "正确 | 错误 | 部分正确 | 无法判断 | 需家长确认",
-      "explanation": "面向 9 岁孩子的启发式讲解：先说考什么，再说解题思路",
-      "step_by_step": ["步骤1：...", "步骤2：..."],
-      "hints": ["启发孩子思考的提示问题1", "提示2"],
-      "known_conditions": ["应用题已知条件1", "已知条件2"],
-      "asked_question": "应用题要求解的核心问题",
-      "need_human_check": false,
-      "warning": ""
-    }
-  ]
-}
+${SHARED_RECOGNITION_JSON_SCHEMA}
+
+数学题型只能从：计算题、应用题、图形题、填空题、选择题、其他 中选择。
+recognized_text 和讲解里的公式、算式、分数、单位请用 $ 符号包裹成 LaTeX。
 `
 
 export const MATH_TUTOR_USER_PROMPT = `请识别并批改这张小学数学作业图片。
