@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import MathView from '../components/MathView'
 import { parseSubjectId, SUBJECT_IDS, SUBJECT_LABELS } from '../data/subjects'
 import { deleteRecord, loadRecords, loadWrongQuestions } from '../services/storageService'
@@ -6,6 +7,7 @@ import type { SubjectId } from '../types'
 import { daysAgo, formatDateTime, formatPercent } from '../utils/format'
 
 const DECIDED = new Set(['正确', '错误', '部分正确'])
+const COLORS = ['#e63946', '#f4a261', '#e9c46a', '#2a9d8f', '#264653', '#8b5cf6', '#d946ef', '#0ea5e9']
 
 export default function RecordsPage() {
   const [subjectFilter, setSubjectFilter] = useState<SubjectId | '全部'>('全部')
@@ -29,9 +31,17 @@ export default function RecordsPage() {
   const pendingReview = wrongQuestions.filter((item) => item.reviewStatus !== '已掌握').length
 
   const knowledgeWrong = new Map<string, number>()
+  const errorCauses = new Map<string, number>()
   for (const item of wrongQuestions) {
     knowledgeWrong.set(item.knowledgePoint, (knowledgeWrong.get(item.knowledgePoint) ?? 0) + 1)
+    if (item.errorCause) {
+      errorCauses.set(item.errorCause, (errorCauses.get(item.errorCause) ?? 0) + 1)
+    }
   }
+
+  const errorCauseData = [...errorCauses.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, value]) => ({ name, value }))
 
   function handleDelete(id: string) {
     if (!window.confirm('确定删除这条学习记录吗？')) return
@@ -68,35 +78,77 @@ export default function RecordsPage() {
       </section>
 
       {/* 错题分布薄弱点诊断 */}
-      <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
-        <h2 className="text-xs sm:text-sm font-bold text-[#243026]">🎯 知识点薄弱分布</h2>
-        <p className="mt-0.5 text-[11px] text-[#66756c]">根据错题归类直观查看薄弱考点：</p>
-        {knowledgeWrong.size === 0 ? (
-          <p className="mt-2 text-xs text-[#8c9c93]">太棒了！目前错题本中没有错题堆积。</p>
-        ) : (
-          <div className="mt-2 space-y-2">
-            {[...knowledgeWrong.entries()]
-              .sort((a, b) => b[1] - a[1])
-              .map(([name, count]) => {
-                const percent = Math.min(100, (count / wrongQuestions.length) * 100)
-                return (
-                  <div key={name} className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
-                    <div className="flex justify-between text-xs font-semibold text-[#243026]">
-                      <span>{name}</span>
-                      <span className="text-[#b45309]">{count} 道错题</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        {/* 薄弱点分布 (进度条) */}
+        <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
+          <h2 className="text-xs sm:text-sm font-bold text-[#243026]">🎯 知识点薄弱分布</h2>
+          <p className="mt-0.5 text-[11px] text-[#66756c]">根据错题归类直观查看薄弱考点：</p>
+          {knowledgeWrong.size === 0 ? (
+            <p className="mt-2 text-xs text-[#8c9c93]">太棒了！目前错题本中没有错题堆积。</p>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {[...knowledgeWrong.entries()]
+                .sort((a, b) => b[1] - a[1])
+                .map(([name, count]) => {
+                  const percent = Math.min(100, (count / wrongQuestions.length) * 100)
+                  return (
+                    <div key={name} className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+                      <div className="flex justify-between text-xs font-semibold text-[#243026]">
+                        <span>{name}</span>
+                        <span className="text-[#b45309]">{count} 道错题</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e2d4]">
+                        <div
+                          className="h-full bg-linear-to-r from-[#d97706] to-[#b45309] rounded-full"
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#e8e2d4]">
-                      <div
-                        className="h-full bg-linear-to-r from-[#d97706] to-[#b45309] rounded-full"
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+            </div>
+          )}
+        </section>
+
+        {/* 错因分析饼图 */}
+        <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8] flex flex-col">
+          <h2 className="text-xs sm:text-sm font-bold text-[#243026]">🔍 错因归类分析</h2>
+          <p className="mt-0.5 text-[11px] text-[#66756c]">统计为什么会做错，对症下药：</p>
+          <div className="mt-2 flex-1 min-h-[200px] flex items-center justify-center">
+            {errorCauseData.length === 0 ? (
+              <p className="text-xs text-[#8c9c93]">暂无错因数据</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={errorCauseData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {errorCauseData.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', fontSize: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    itemStyle={{ color: '#243026', fontWeight: 'bold' }}
+                  />
+                  <Legend 
+                    layout="horizontal" 
+                    verticalAlign="bottom" 
+                    align="center"
+                    wrapperStyle={{ fontSize: '10px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
-        )}
-      </section>
+        </section>
+      </div>
 
       {/* 全部历史记录列表 */}
       <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">

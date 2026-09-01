@@ -2,11 +2,13 @@ import { Link } from 'react-router-dom'
 import RewardBadge from '../components/RewardBadge'
 import { hasApiKey, loadSettings } from '../services/settingsService'
 import { loadRecords, loadWrongQuestions } from '../services/storageService'
+import { getEbbinghausStatus } from '../utils/ebbinghaus'
 
 export default function HomePage() {
   const ready = hasApiKey(loadSettings())
   const wrongQuestions = loadWrongQuestions()
   const unmasteredWrong = wrongQuestions.filter((q) => q.reviewStatus !== '已掌握').length
+  const ebbinghausDueCount = wrongQuestions.filter(q => getEbbinghausStatus(q).isDue).length
   const records = loadRecords()
 
   return (
@@ -43,6 +45,24 @@ export default function HomePage() {
           <span>⚠️ 尚未填写 API Key</span>
           <Link to="/settings" className="font-bold underline text-[#b45309] ml-2 shrink-0">
             去设置 →
+          </Link>
+        </div>
+      )}
+
+      {/* 艾宾浩斯复习提醒 */}
+      {ebbinghausDueCount > 0 && (
+        <div className="rounded-2xl bg-amber-50 p-3 sm:p-4 text-xs shadow-xs border border-amber-200/60 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 font-bold text-amber-800">
+              <span className="text-base">🧠</span>
+              <span>艾宾浩斯复习提醒</span>
+            </div>
+            <p className="mt-0.5 text-[11px] text-amber-700">
+              今日有 <strong className="text-rose-600 text-sm mx-0.5">{ebbinghausDueCount}</strong> 道错题处于遗忘临界点，请及时巩固！
+            </p>
+          </div>
+          <Link to="/wrong-book?filter=ebbinghaus" className="shrink-0 rounded-xl bg-amber-600 px-3 py-1.5 font-bold text-white shadow-xs hover:bg-amber-700 transition-colors">
+            去复习 →
           </Link>
         </div>
       )}

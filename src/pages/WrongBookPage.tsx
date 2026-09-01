@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import MathView from '../components/MathView'
 import PrintSheetModal from '../components/PrintSheetModal'
 import VariantPracticeModal from '../components/VariantPracticeModal'
@@ -8,16 +8,24 @@ import { parseSubjectId, SUBJECT_IDS, SUBJECT_LABELS } from '../data/subjects'
 import { loadWrongQuestions } from '../services/storageService'
 import type { ReviewStatus, SubjectId, WrongQuestion } from '../types'
 import { formatDateTime } from '../utils/format'
+import { getEbbinghausStatus } from '../utils/ebbinghaus'
 
-const statuses: Array<ReviewStatus | '全部'> = ['全部', '未复习', '已复习', '已掌握']
+const statuses: Array<ReviewStatus | '全部' | '今日待复习'> = ['全部', '今日待复习', '未复习', '已复习', '已掌握']
 
 export default function WrongBookPage() {
+  const [searchParams] = useSearchParams()
   const [keyword, setKeyword] = useState('')
   const [subjectFilter, setSubjectFilter] = useState<SubjectId | '全部'>('全部')
   const [knowledge, setKnowledge] = useState('全部')
-  const [status, setStatus] = useState<ReviewStatus | '全部'>('全部')
+  const [status, setStatus] = useState<ReviewStatus | '全部' | '今日待复习'>('全部')
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [selectedVariantQuestion, setSelectedVariantQuestion] = useState<WrongQuestion | null>(null)
+
+  useEffect(() => {
+    if (searchParams.get('filter') === 'ebbinghaus') {
+      setStatus('今日待复习')
+    }
+  }, [searchParams])
 
   const items = loadWrongQuestions()
   const scopedItems = useMemo(
@@ -46,7 +54,11 @@ export default function WrongBookPage() {
           ? true
           : item.knowledgePoint === knowledge || item.knowledgePoints.includes(knowledge),
       )
-      .filter((item) => (status === '全部' ? true : item.reviewStatus === status))
+      .filter((item) => {
+        if (status === '全部') return true
+        if (status === '今日待复习') return getEbbinghausStatus(item).isDue
+        return item.reviewStatus === status
+      })
       .filter((item) => {
         const hay = `${item.correctedText} ${item.originalText} ${item.studentAnswer} ${item.correctAnswer} ${item.notes}`
         return hay.toLowerCase().includes(keyword.trim().toLowerCase())
@@ -119,7 +131,7 @@ export default function WrongBookPage() {
         <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           {statuses.map((s) => {
             const count =
-              s === '全部' ? scopedItems.length : scopedItems.filter((i) => i.reviewStatus === s).length
+              s === '全部' ? scopedItems.length : s === '今日待复习' ? scopedItems.filter((i) => getEbbinghausStatus(i).isDue).length : scopedItems.filter((i) => i.reviewStatus === s).length
             const isActive = status === s
             return (
               <button

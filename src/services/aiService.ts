@@ -46,6 +46,95 @@ export class AiServiceError extends Error {
   }
 }
 
+const RECOGNITION_JSON_SCHEMA = {
+  name: 'recognition_result',
+  strict: true,
+  schema: {
+    type: 'object',
+    properties: {
+      is_multi: { type: 'boolean' },
+      detected_subject: { type: 'string', enum: ['math', 'chinese', 'english'] },
+      overall_notes: { type: 'string' },
+      questions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            subject: { type: 'string', enum: ['math', 'chinese', 'english'] },
+            recognized_text: { type: 'string' },
+            confidence_level: { type: 'string', enum: ['高', '中', '低'] },
+            question_type: { type: 'string' },
+            knowledge_point: { type: 'string' },
+            knowledge_points: { type: 'array', items: { type: 'string' } },
+            textbook_unit: { type: 'string' },
+            student_answer: { type: 'string' },
+            ai_answer: { type: 'string' },
+            is_correct: { type: 'string', enum: ['正确', '错误', '部分正确', '无法判断', '需家长确认'] },
+            explanation: { type: 'string' },
+            step_by_step: { type: 'array', items: { type: 'string' } },
+            hints: { type: 'array', items: { type: 'string' } },
+            known_conditions: { type: 'array', items: { type: 'string' } },
+            asked_question: { type: 'string' },
+            need_human_check: { type: 'boolean' },
+            warning: { type: 'string' },
+          },
+          required: [
+            'subject',
+            'recognized_text',
+            'confidence_level',
+            'question_type',
+            'knowledge_point',
+            'knowledge_points',
+            'textbook_unit',
+            'student_answer',
+            'ai_answer',
+            'is_correct',
+            'explanation',
+            'step_by_step',
+            'hints',
+            'known_conditions',
+            'asked_question',
+            'need_human_check',
+            'warning',
+          ],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['is_multi', 'detected_subject', 'overall_notes', 'questions'],
+    additionalProperties: false,
+  },
+}
+
+const VARIANT_JSON_SCHEMA = {
+  name: 'variant_questions',
+  strict: true,
+  schema: {
+    type: 'object',
+    properties: {
+      variants: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            question_text: { type: 'string' },
+            knowledge_point: { type: 'string' },
+            hints: { type: 'array', items: { type: 'string' } },
+            step_by_step: { type: 'array', items: { type: 'string' } },
+            answer: { type: 'string' },
+            explanation: { type: 'string' },
+          },
+          required: ['id', 'question_text', 'knowledge_point', 'hints', 'step_by_step', 'answer', 'explanation'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['variants'],
+    additionalProperties: false,
+  },
+}
+
 const CONFIDENCE: ConfidenceLevel[] = ['高', '中', '低']
 const QUESTION_TYPES: QuestionType[] = ALL_QUESTION_TYPES
 const JUDGEMENTS: Judgement[] = ['正确', '错误', '部分正确', '无法判断', '需家长确认']
@@ -208,6 +297,10 @@ export function modelSupportsJsonObject(model: string): boolean {
   return /gpt-4o|gpt-4\.1|gpt-5|o[1-4]|chatgpt|deepseek|qwen/i.test(model)
 }
 
+export function modelSupportsJsonSchema(model: string): boolean {
+  return /gpt-4o|gpt-4\.5|o[1-4]/i.test(model)
+}
+
 export function isLikelyNetworkOrCorsError(error: unknown): boolean {
   if (!(error instanceof TypeError)) return false
   return /failed to fetch|networkerror|load failed|network request failed/i.test(error.message)
@@ -316,6 +409,7 @@ export async function recognizeQuestions(
   const { mime, base64 } = dataUrlToBase64(imageDataUrl)
   const session = wrapAbort(signal, RECOGNIZE_TIMEOUT_MS)
   const useJsonMode = modelSupportsJsonObject(current.model)
+  const useJsonSchema = modelSupportsJsonSchema(current.model)
 
   const makeBody = (withJsonMode: boolean) => {
     const body: Record<string, unknown> = {
@@ -338,7 +432,11 @@ export async function recognizeQuestions(
       ],
     }
     if (withJsonMode) {
-      body.response_format = { type: 'json_object' }
+      if (useJsonSchema) {
+        body.response_format = { type: 'json_schema', json_schema: RECOGNITION_JSON_SCHEMA }
+      } else {
+        body.response_format = { type: 'json_object' }
+      }
     }
     return body
   }
@@ -408,6 +506,7 @@ export async function generateVariantQuestions(
 
   const session = wrapAbort(signal, RECOGNIZE_TIMEOUT_MS)
   const useJsonMode = modelSupportsJsonObject(current.model)
+  const useJsonSchema = modelSupportsJsonSchema(current.model)
 
   const subject = wrongQuestion.subject || 'math'
   const subjectLabel = subject === 'chinese' ? '语文' : subject === 'english' ? '英语' : '数学'
@@ -429,7 +528,11 @@ export async function generateVariantQuestions(
     ],
   }
   if (useJsonMode) {
-    body.response_format = { type: 'json_object' }
+    if (useJsonSchema) {
+      body.response_format = { type: 'json_schema', json_schema: VARIANT_JSON_SCHEMA }
+    } else {
+      body.response_format = { type: 'json_object' }
+    }
   }
 
   try {
