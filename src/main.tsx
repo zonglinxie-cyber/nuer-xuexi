@@ -1,9 +1,17 @@
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
+import { registerSW } from 'virtual:pwa-register'
 import { router } from './App'
 import { initStorageAsync } from './services/storageService'
 import './index.css'
+
+registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    window.location.reload()
+  },
+})
 
 function Root() {
   const [ready, setReady] = useState(false)
