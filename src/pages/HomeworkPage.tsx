@@ -6,7 +6,7 @@ import NoticeBanner from '../components/NoticeBanner'
 import PrivacyNotice from '../components/PrivacyNotice'
 import ResultEditor from '../components/ResultEditor'
 import { defaultKnowledgeName, defaultTextbookUnit, parseSubjectId, SUBJECT_IDS, SUBJECT_LABELS } from '../data/subjects'
-import { AiServiceError, recognizeQuestions } from '../services/aiService'
+import { AiServiceError, recognizeQuestions, recheckQuestion } from '../services/aiService'
 import { hasApiKey, loadLastSubject, loadSettings, saveLastSubject } from '../services/settingsService'
 import { upsertRecord, upsertWrongQuestion } from '../services/storageService'
 import type { AppNotice, DraftQuestion, ExplanationMode, RecognitionResult, SubjectId } from '../types'
@@ -72,6 +72,7 @@ export default function HomeworkPage() {
   const [activeIndex, setActiveIndex] = useState(0)
   const [hasResult, setHasResult] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [rechecking, setRechecking] = useState(false)
   const [mode, setMode] = useState<ExplanationMode>('guide')
   const [imageDataUrl, setImageDataUrl] = useState('')
   const [viewTab, setViewTab] = useState<'editor' | 'explanation'>('editor')
@@ -82,6 +83,38 @@ export default function HomeworkPage() {
       : { type: 'warning', message: '还没有填写 API Key。可以先上传图片预览，但识别前请先到设置页填写。' },
   )
   const abortRef = useRef<AbortController | null>(null)
+
+  async function handleRecheck() {
+    if (!currentDraft.result.recognized_text.trim()) {
+      setNotice({ type: 'warning', message: '请先填写题目内容。' })
+      return
+    }
+    if (!hasApiKey()) {
+      setNotice({ type: 'warning', message: '还没有填写 API Key。请先到设置页填写后再重新批改。' })
+      return
+    }
+    setRechecking(true)
+    setNotice({ type: 'info', message: '正在根据修改后的题目与作答重新解析，请稍候…' })
+    try {
+      const updatedResult = await recheckQuestion(
+        currentDraft.result.recognized_text,
+        currentDraft.result.student_answer,
+        currentDraft.subject,
+      )
+      updateActiveResult(updatedResult)
+      setNotice({
+        type: 'success',
+        message: '🎉 重新批改完成！参考答案、思路讲解与对错判断已同步更新。',
+      })
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : '重新解析失败，请检查网络或 API Key。',
+      })
+    } finally {
+      setRechecking(false)
+    }
+  }
 
   useEffect(() => {
     const fromQuery = searchParams.get('subject')
@@ -568,6 +601,8 @@ export default function HomeworkPage() {
                 needReview={currentDraft.needReview}
                 onMetaChange={updateActiveMeta}
                 subject={currentDraft.subject}
+                onRecheck={handleRecheck}
+                rechecking={rechecking}
               />
             ) : (
               <ExplanationPanel

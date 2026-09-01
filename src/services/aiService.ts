@@ -604,3 +604,91 @@ export async function testAiConnection(settings?: AiSettings, signal?: AbortSign
     session.dispose()
   }
 }
+
+export async function recheckQuestion(
+  questionText: string,
+  studentAnswer: string,
+  subject: SubjectId = 'math',
+  settings?: AiSettings,
+  signal?: AbortSignal,
+): Promise<RecognitionResult> {
+  const current = settings ?? loadSettings()
+  if (!hasApiKey(current)) {
+    throw new AiServiceError('还没有填写 API Key。请先到设置页填写。', 'missing_key')
+  }
+
+  const session = wrapAbort(signal, RECOGNIZE_TIMEOUT_MS)
+  const useJsonMode = modelSupportsJsonObject(current.model)
+  const useJsonSchema = modelSupportsJsonSchema(current.model)
+  const prompts = tutorPrompts(subject)
+
+  const subjectLabel = subject === 'chinese' ? '语文' : subject === 'english' ? '英语' : '数学'
+  const prompt = `请对以下家长已手动校对准确的小学四年级【${subjectLabel}】题目和学生作答进行重新批改并给出详细讲解：
+【题目内容】：${questionText}
+【学生作答】：${studentAnswer || '（未作答/空白）'}
+
+要求：
+1. 仔细分析题目要求，给出标准参考答案（ai_answer）。
+2. 判断学生作答是否正确（is_correct: 正确 / 错误 / 部分正确 / 需家长确认）。
+3. 提供适合 9 岁孩子的温柔启发式讲解（explanation）、分步点拨（step_by_step）、思考提示（hints）和知识点归类（knowledge_point）。
+4. 公式、算式、分数、单位请规范使用 LaTeX 格式用 $ 包裹。
+5. 必须返回规范的 JSON 格式，将结果放在 questions 数组中。`
+
+  const body: Record<string, unknown> = {
+    model: current.model.trim(),
+    temperature: 0.2,
+    messages: [
+      { role: 'system', content: prompts.system },
+      { role: 'user', content: prompt },
+    ],
+  }
+  if (useJsonMode) {
+    if (useJsonSchema) {
+      body.response_format = { type: 'json_schema', json_schema: RECOGNITION_JSON_SCHEMA }
+    } else {
+      body.response_format = { type: 'json_object' }
+    }
+  }
+
+  try {
+    let response = await fetch(chatCompletionsUrl(current.baseUrl), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${current.apiKey.trim()}`,
+      },
+      body: JSON.stringify(body),
+      signal: session.signal,
+    })
+    let rawText = await response.text()
+    if (!response.ok && useJsonMode && response.status === 400 && /response_format|json_object/i.test(rawText)) {
+      delete body.response_format
+      response = await fetch(chatCompletionsUrl(current.baseUrl), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${current.apiKey.trim()}`,
+        },
+        body: JSON.stringify(body),
+        signal: session.signal,
+      })
+      rawText = await response.text()
+    }
+    if (!response.ok) {
+      throw friendlyHttpError(response.status, rawText)
+    }
+
+    const text = await readContent(rawText)
+    const multi = normalizeMultiRecognition(extractJson(text), subject)
+    const result = multi.questions[0] || normalizeRecognition({}, subject)
+    // 确保保留家长校对的题目和作答
+    result.recognized_text = questionText
+    result.student_answer = studentAnswer
+    return result
+  } catch (error) {
+    mapFetchError(error, session, current.baseUrl)
+  } finally {
+    session.dispose()
+  }
+}
+

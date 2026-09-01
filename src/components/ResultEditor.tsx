@@ -20,6 +20,8 @@ export default function ResultEditor({
   needReview,
   onMetaChange,
   subject,
+  onRecheck,
+  rechecking,
 }: {
   result: RecognitionResult
   onChange: (next: RecognitionResult) => void
@@ -34,6 +36,8 @@ export default function ResultEditor({
     needReview?: boolean
   }) => void
   subject: SubjectId
+  onRecheck?: () => void
+  rechecking?: boolean
 }) {
   const isWrongOrPartial =
     result.is_correct === '错误' || result.is_correct === '部分正确' || needReview
@@ -104,6 +108,23 @@ export default function ResultEditor({
           />
         </Field>
       </div>
+
+      {/* 手动修改题目/作答后的重新批改与同步按钮 */}
+      {onRecheck && (
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-amber-50/90 border border-amber-200/90 text-xs">
+          <div className="text-[11px] text-amber-900 leading-snug">
+            ✏️ <strong>手动校对提示</strong>：若 OCR 识别题目或作答有误，修改上方文字后点击右侧按钮，AI 将根据修改内容<strong>重新批改并同步更新思路讲解</strong>。
+          </div>
+          <button
+            type="button"
+            disabled={rechecking || !result.recognized_text.trim()}
+            onClick={onRecheck}
+            className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#2f5d50] hover:bg-[#254b40] text-white px-3.5 py-2 text-xs font-bold shadow-xs disabled:opacity-50 transition-colors"
+          >
+            {rechecking ? '🔄 正在同步更新…' : '✨ 重新批改并同步解析'}
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <Field label="知识点归类">
