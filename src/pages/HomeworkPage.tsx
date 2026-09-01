@@ -74,6 +74,8 @@ export default function HomeworkPage() {
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<ExplanationMode>('guide')
   const [imageDataUrl, setImageDataUrl] = useState('')
+  const [viewTab, setViewTab] = useState<'editor' | 'explanation'>('editor')
+  const [showImageModal, setShowImageModal] = useState(false)
   const [notice, setNotice] = useState<AppNotice | null>(() =>
     hasApiKey(loadSettings())
       ? null
@@ -183,15 +185,16 @@ export default function HomeworkPage() {
       setDrafts(newDrafts)
       setActiveIndex(0)
       setHasResult(true)
+      setViewTab('editor')
       setMode('guide')
 
       if (multi.questions.length > 1) {
         setNotice({
           type: 'success',
-          message: `识别到整页包含 ${multi.questions.length} 道题目，已为您全部批改！可点击上方切换核对。`,
+          message: `识别到整页共 ${multi.questions.length} 道题，已为您完成全部批改！`,
         })
       } else {
-        setNotice({ type: 'success', message: '识别与批改完成，请核对解题思路并确认。' })
+        setNotice({ type: 'success', message: '识别批改完成，请核对解题思路。' })
       }
     } catch (error) {
       const message =
@@ -219,7 +222,7 @@ export default function HomeworkPage() {
       if (!shouldSave) {
         setNotice({
           type: 'warning',
-          message: '当前判断不是错误/部分正确/需复习。如需保存到错题本，请先改判断或勾选“需复习”。',
+          message: '当前判断不是错误/部分正确/需复习。如需入错题本，请先改判断或勾选“需复习”。',
         })
         return
       }
@@ -265,8 +268,8 @@ export default function HomeworkPage() {
       setNotice({
         type: 'success',
         message: saveToWrong
-          ? '已保存到错题本，并记录至学习记录！'
-          : '已按家长确认的结果保存到学习记录。',
+          ? '✓ 已入错题本并写入记录！'
+          : '✓ 已保存到学习记录！',
       })
     } catch (error) {
       setNotice({
@@ -327,51 +330,51 @@ export default function HomeworkPage() {
 
     setDrafts(updated)
     const extra =
-      skippedCauseCount > 0 ? ` 另有 ${skippedCauseCount} 道错题未选错因，已只写入学习记录，请补选错因后再归档。` : ''
+      skippedCauseCount > 0 ? ` 另有 ${skippedCauseCount} 道错题未选错因，已写入记录。` : ''
     setNotice({
       type: skippedCauseCount > 0 ? 'warning' : 'success',
-      message: `整页处理完毕：已保存 ${savedRecordCount} 条记录，其中 ${savedWrongCount} 道错题已归档。${extra}`,
+      message: `🎉 已保存 ${savedRecordCount} 条记录，其中 ${savedWrongCount} 道错题已归档。${extra}`,
     })
   }
 
   const statusText = useMemo(() => {
     if (!hasResult) return '尚未识别'
     if (currentDraft.parentConfirmed) {
-      return currentDraft.savedAsWrong ? '已确认 · 已入错题本' : '家长已确认'
+      return currentDraft.savedAsWrong ? '已入错题本' : '已确认'
     }
     return '待确认'
   }, [currentDraft.parentConfirmed, currentDraft.savedAsWrong, hasResult])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4">
       <NoticeBanner notice={notice} />
       <PrivacyNotice />
 
-      {/* 上传拍照区域 */}
-      <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 border border-[#ece6d8]">
-        <h2 className="text-lg font-bold text-[#243026] sm:text-xl">📸 拍照 / 上传整页作业</h2>
-        <p className="mt-1.5 text-sm leading-6 text-[#4a5850]">
-          先选学科再识别。支持单题或整页多题。手机拍照请尽量光线充足、竖直平拍。
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {SUBJECT_IDS.map((id) => (
-            <button
-              key={id}
-              type="button"
-              disabled={loading}
-              onClick={() => changeSubject(id)}
-              className={`rounded-xl px-4 py-2 text-sm font-bold transition-all ${
-                subject === id
-                  ? 'bg-[#2f5d50] text-white shadow-xs'
-                  : 'border border-[#e0d9cb] bg-[#fbfaf5] text-[#4a5850] hover:bg-[#f2eee4]'
-              }`}
-            >
-              {SUBJECT_LABELS[id]}
-            </button>
-          ))}
-        </div>
+      {/* 拍照上传与学科选择卡片 */}
+      {!hasResult ? (
+        <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="text-sm sm:text-base font-bold text-[#243026]">📸 上传作业</h2>
+            {/* 学科切换 Pills */}
+            <div className="flex gap-1.5 bg-[#fbfaf5] p-1 rounded-xl border border-[#e8e2d4]">
+              {SUBJECT_IDS.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => changeSubject(id)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                    subject === id
+                      ? 'bg-[#2f5d50] text-white shadow-xs'
+                      : 'text-[#66756c] hover:text-[#243026]'
+                  }`}
+                >
+                  {SUBJECT_LABELS[id]}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        <div className="mt-4">
           <ImageUploader
             imageDataUrl={imageDataUrl}
             disabled={loading}
@@ -386,28 +389,49 @@ export default function HomeworkPage() {
               setMode('guide')
             }}
           />
-        </div>
 
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          <button
-            className="w-full rounded-2xl bg-[#2f5d50] px-6 py-3.5 text-base font-bold text-white shadow-md hover:bg-[#254b40] disabled:opacity-60 sm:w-auto"
-            type="button"
-            disabled={loading}
-            onClick={() => void handleRecognize()}
-          >
-            {loading ? '🔍 正在智能识别与批改…' : `开始识别${SUBJECT_LABELS[subject]}作业`}
-          </button>
-          {loading ? (
+          <div className="mt-3 flex gap-2">
             <button
-              className="w-full rounded-2xl border border-[#9a6b4a] px-5 py-3 text-sm text-[#9a6b4a] sm:w-auto"
+              className="flex-1 rounded-xl bg-[#2f5d50] py-3 px-4 text-sm font-bold text-white shadow-sm hover:bg-[#254b40] disabled:opacity-60 transition-colors"
               type="button"
-              onClick={handleCancelRecognize}
+              disabled={loading}
+              onClick={() => void handleRecognize()}
             >
-              取消识别
+              {loading ? '🔍 正在智能批改中…' : `🚀 开始批改${SUBJECT_LABELS[subject]}作业`}
             </button>
-          ) : (
+            {loading && (
+              <button
+                className="rounded-xl border border-[#9a6b4a] px-4 py-3 text-xs font-semibold text-[#9a6b4a]"
+                type="button"
+                onClick={handleCancelRecognize}
+              >
+                取消
+              </button>
+            )}
+          </div>
+        </section>
+      ) : (
+        /* 识别完成后：图片折叠为紧凑状态条 */
+        <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 border border-[#ece6d8] shadow-2xs text-xs">
+          <div className="flex items-center gap-2 truncate">
+            <span className="rounded bg-[#2f5d50]/10 px-1.5 py-0.5 text-[11px] font-bold text-[#2f5d50]">
+              {SUBJECT_LABELS[subject]}
+            </span>
+            <span className="text-[#66756c] truncate">
+              {drafts.length > 1 ? `整页共 ${drafts.length} 题` : '单题作业'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {imageDataUrl && (
+              <button
+                type="button"
+                onClick={() => setShowImageModal(true)}
+                className="rounded-lg border border-[#d9d2c3] px-2 py-1 text-xs text-[#2f5d50] bg-[#fbfaf5]"
+              >
+                🖼️ 看原图
+              </button>
+            )}
             <button
-              className="w-full rounded-2xl border border-[#2f5d50] px-5 py-3 text-sm font-semibold text-[#2f5d50] hover:bg-[#fbfaf5] sm:w-auto"
               type="button"
               onClick={() => {
                 if (!confirmReplace()) return
@@ -416,91 +440,117 @@ export default function HomeworkPage() {
                 setActiveIndex(0)
                 setHasResult(false)
                 setMode('guide')
-                setNotice({ type: 'info', message: '已清空当前题目，可以重新上传。' })
               }}
+              className="rounded-lg border border-[#e0d9cb] px-2 py-1 text-xs text-[#66756c] hover:bg-[#fbfaf5]"
             >
-              重新上传
+              重新拍照
             </button>
-          )}
+          </div>
         </div>
-      </section>
+      )}
 
-      {/* 识别与批改结果 */}
+      {/* 原图弹窗查看 */}
+      {showImageModal && imageDataUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3"
+          onClick={() => setShowImageModal(false)}
+        >
+          <div className="relative max-h-[90vh] max-w-lg rounded-2xl bg-white p-2" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white text-xs"
+              onClick={() => setShowImageModal(false)}
+            >
+              ✕
+            </button>
+            <img src={imageDataUrl} alt="作业原图" className="max-h-[85vh] w-full object-contain rounded-xl" />
+          </div>
+        </div>
+      )}
+
+      {/* 识别与批改结果主区域 */}
       {hasResult && (
         <>
-          {/* 多题 Tab 切换栏（当整页识别出多题时显示） */}
+          {/* 多题滑动切换 Tab（多题时显示） */}
           {drafts.length > 1 && (
-            <section className="rounded-3xl bg-white p-4 shadow-sm border border-[#ece6d8]">
-              <div className="flex items-center justify-between pb-3 border-b border-[#f0ece1]">
-                <h3 className="font-bold text-[#243026]">
-                  整页共识别出 {drafts.length} 道题：
-                </h3>
-                <button
-                  type="button"
-                  onClick={handleBatchSave}
-                  className="rounded-xl bg-[#2f5d50] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#254b40]"
-                >
-                  ⚡ 一键全部确认并归档
-                </button>
-              </div>
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              {drafts.map((d, index) => {
+                const isWrong = d.result.is_correct === '错误' || d.result.is_correct === '部分正确'
+                const isCorrect = d.result.is_correct === '正确'
+                const isSelected = activeIndex === index
 
-              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                {drafts.map((d, index) => {
-                  const isWrong =
-                    d.result.is_correct === '错误' || d.result.is_correct === '部分正确'
-                  const isCorrect = d.result.is_correct === '正确'
-                  const isSelected = activeIndex === index
-
-                  return (
-                    <button
-                      key={d.id}
-                      type="button"
-                      onClick={() => setActiveIndex(index)}
-                      className={`flex shrink-0 items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all ${
-                        isSelected
-                          ? 'bg-[#2f5d50] text-white shadow-sm'
-                          : 'border border-[#e0d9cb] bg-[#fbfaf5] text-[#4a5850] hover:bg-[#f2eee4]'
-                      }`}
-                    >
-                      <span>第 {index + 1} 题</span>
-                      <span className="text-xs">
-                        {isCorrect ? '✅' : isWrong ? '❌' : '❓'}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </section>
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setActiveIndex(index)}
+                    className={`flex shrink-0 items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+                      isSelected
+                        ? 'bg-[#2f5d50] text-white shadow-xs'
+                        : 'border border-[#e0d9cb] bg-white text-[#66756c]'
+                    }`}
+                  >
+                    <span>第 {index + 1} 题</span>
+                    <span className="text-[10px]">
+                      {isCorrect ? '✅' : isWrong ? '❌' : '❓'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
           )}
 
-          {/* 单题详情与编辑 */}
-          <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 border border-[#ece6d8]">
-            <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-lg bg-[#2f5d50]/10 px-2.5 py-1 text-xs font-bold text-[#2f5d50]">
-                    第 {activeIndex + 1} / {drafts.length} 题
-                  </span>
-                  <h2 className="text-lg font-bold text-[#243026]">
-                    【{currentDraft.result.knowledge_point}】{currentDraft.result.question_type}
-                  </h2>
-                </div>
-                <p className="mt-1 text-xs text-[#66756c]">
-                  章节：{currentDraft.result.textbook_unit} · 置信度：{currentDraft.result.confidence_level}
-                </p>
+          {/* 题目内容卡片 */}
+          <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
+            {/* 卡片头部信息 */}
+            <div className="flex items-center justify-between border-b border-[#f5f1e8] pb-2.5 mb-3">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="rounded bg-[#2f5d50]/10 px-1.5 py-0.5 text-[11px] font-bold text-[#2f5d50]">
+                  第 {activeIndex + 1} 题
+                </span>
+                <h2 className="text-xs sm:text-sm font-bold text-[#243026] truncate">
+                  【{currentDraft.result.knowledge_point}】
+                </h2>
               </div>
-              <span className="rounded-xl bg-[#efe8d8] px-3.5 py-1.5 text-xs font-semibold text-[#5d4a28]">
+              <span
+                className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] font-bold ${
+                  currentDraft.parentConfirmed
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-[#efe8d8] text-[#5d4a28]'
+                }`}
+              >
                 {statusText}
               </span>
             </div>
 
-            {currentDraft.result.warning && (
-              <p className="mt-3 rounded-xl bg-[#fef3c7] px-4 py-3 text-xs text-[#92400e]">
-                ⚠️ {currentDraft.result.warning}
-              </p>
-            )}
+            {/* 手机端分段切换 Tabs：[ 📝 题目与批改 ] vs [ 💡 启发讲解 ] */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#fbfaf5] rounded-xl border border-[#eee7d8] mb-3">
+              <button
+                type="button"
+                onClick={() => setViewTab('editor')}
+                className={`rounded-lg py-1.5 text-xs font-bold transition-all ${
+                  viewTab === 'editor'
+                    ? 'bg-white text-[#2f5d50] shadow-xs border border-[#e0d9cb]'
+                    : 'text-[#66756c] hover:text-[#243026]'
+                }`}
+              >
+                📝 题目与批改
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewTab('explanation')}
+                className={`rounded-lg py-1.5 text-xs font-bold transition-all ${
+                  viewTab === 'explanation'
+                    ? 'bg-white text-[#2f5d50] shadow-xs border border-[#e0d9cb]'
+                    : 'text-[#66756c] hover:text-[#243026]'
+                }`}
+              >
+                💡 启发讲解 & 步骤
+              </button>
+            </div>
 
-            <div className="mt-4">
+            {/* 分段内容渲染 */}
+            {viewTab === 'editor' ? (
               <ResultEditor
                 result={currentDraft.result}
                 onChange={updateActiveResult}
@@ -511,48 +561,43 @@ export default function HomeworkPage() {
                 onMetaChange={updateActiveMeta}
                 subject={currentDraft.subject}
               />
-            </div>
+            ) : (
+              <ExplanationPanel
+                result={currentDraft.result}
+                mode={mode}
+                onModeChange={setMode}
+              />
+            )}
           </section>
 
-          {/* 启发式讲解面板 */}
-          <ExplanationPanel
-            result={currentDraft.result}
-            mode={mode}
-            onModeChange={setMode}
-          />
-
-          {/* 底部保存操作 */}
-          <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 border border-[#ece6d8]">
-            <h3 className="text-lg font-bold text-[#243026]">💾 确认并保存</h3>
-            <p className="mt-1 text-sm text-[#4a5850]">
-              以家长当前确认的修改为准。如果是错题，保存到错题本后可在周末一键导出 A4 打印卷或在线举一反三练习。
-            </p>
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          {/* 手机端常驻吸底操作栏（Sticky Action Bar） */}
+          <div className="fixed inset-x-0 bottom-12 sm:bottom-0 z-20 bg-white/95 backdrop-blur-md border-t border-[#ece6d8] px-3 py-2 shadow-lg">
+            <div className="mx-auto flex max-w-5xl items-center justify-between gap-2">
               <button
-                className="w-full rounded-2xl bg-[#2f5d50] px-6 py-3.5 text-sm font-bold text-white shadow-md hover:bg-[#254b40] sm:w-auto"
+                className="flex-1 rounded-xl bg-[#2f5d50] py-2.5 px-3 text-xs sm:text-sm font-bold text-white shadow-xs hover:bg-[#254b40] transition-colors"
                 type="button"
                 onClick={() => handleSaveSingle(false)}
               >
-                ✓ 保存到学习记录
+                ✓ 存记录
               </button>
               <button
-                className="w-full rounded-2xl border border-[#9a6b4a] bg-[#fbfaf5] px-6 py-3.5 text-sm font-bold text-[#9a6b4a] hover:bg-[#f5ede1] sm:w-auto"
+                className="flex-1 rounded-xl border border-[#9a6b4a] bg-[#fbfaf5] py-2.5 px-3 text-xs sm:text-sm font-bold text-[#9a6b4a] hover:bg-[#f5ede1] transition-colors"
                 type="button"
                 onClick={() => handleSaveSingle(true)}
               >
-                📕 保存到错题本并归档
+                📕 入错题本
               </button>
               {drafts.length > 1 && (
                 <button
-                  className="w-full rounded-2xl bg-linear-to-r from-[#d97706] to-[#b45309] px-6 py-3.5 text-sm font-bold text-white shadow-md hover:opacity-95 sm:w-auto"
+                  className="rounded-xl bg-linear-to-r from-[#d97706] to-[#b45309] py-2.5 px-3 text-xs sm:text-sm font-bold text-white shadow-xs hover:opacity-95 transition-opacity shrink-0"
                   type="button"
                   onClick={handleBatchSave}
                 >
-                  ⚡ 一键全部确认并归档整页
+                  ⚡ 全部归档
                 </button>
               )}
             </div>
-          </section>
+          </div>
         </>
       )}
     </div>

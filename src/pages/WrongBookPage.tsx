@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import Field, { inputClass } from '../components/Field'
 import MathView from '../components/MathView'
 import PrintSheetModal from '../components/PrintSheetModal'
 import VariantPracticeModal from '../components/VariantPracticeModal'
@@ -55,7 +54,7 @@ export default function WrongBookPage() {
   }, [items, keyword, knowledge, status, subjectFilter])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4">
       {showPrintModal && (
         <PrintSheetModal
           questions={filtered.length > 0 ? filtered : items}
@@ -71,27 +70,27 @@ export default function WrongBookPage() {
         />
       )}
 
-      {/* 头部与核心工具栏 */}
-      <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 border border-[#ece6d8]">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* 头部与工具栏 */}
+      <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
+        <div className="flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-xl font-bold text-[#243026]">📕 错题本</h2>
-            <p className="mt-1 text-xs text-[#66756c]">
-              共收集 {items.length} 道错题 · 其中 {unmasteredCount} 道待巩固复习
+            <h2 className="text-base sm:text-lg font-bold text-[#243026]">📕 错题本</h2>
+            <p className="mt-0.5 text-xs text-[#66756c]">
+              共 {items.length} 题 · 待复习 {unmasteredCount} 题
             </p>
           </div>
           <button
             type="button"
             onClick={() => setShowPrintModal(true)}
             disabled={items.length === 0}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-[#2f5d50] px-5 py-3 text-sm font-bold text-white shadow-md hover:bg-[#254b40] disabled:opacity-50"
+            className="flex items-center gap-1 rounded-xl bg-[#2f5d50] px-3.5 py-2 text-xs sm:text-sm font-bold text-white shadow-xs hover:bg-[#254b40] disabled:opacity-50 shrink-0"
           >
-            <span>🖨️ 生成 A4 错题重做卷</span>
+            <span>🖨️ A4 打印卷</span>
           </button>
         </div>
 
-        {/* 快速状态筛选 Chips */}
-        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[#f0ece1] pt-4">
+        {/* 学科切换水平滚动条 */}
+        <div className="mt-3 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-t border-[#f0ece1] pt-2.5">
           {(['全部', ...SUBJECT_IDS] as const).map((id) => {
             const count =
               id === '全部' ? items.length : items.filter((item) => parseSubjectId(item.subject) === id).length
@@ -104,19 +103,20 @@ export default function WrongBookPage() {
                   setSubjectFilter(id)
                   setKnowledge('全部')
                 }}
-                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
                   isActive
                     ? 'bg-[#2f5d50] text-white shadow-xs'
-                    : 'bg-[#fbfaf5] border border-[#e0d9cb] text-[#66756c] hover:bg-[#f5ede1]'
+                    : 'bg-[#fbfaf5] border border-[#e0d9cb] text-[#66756c]'
                 }`}
               >
-                {id === '全部' ? '全部学科' : SUBJECT_LABELS[id]} ({count})
+                {id === '全部' ? '全部' : SUBJECT_LABELS[id]} ({count})
               </button>
             )
           })}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        {/* 状态切换水平滚动条 */}
+        <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           {statuses.map((s) => {
             const count =
               s === '全部' ? scopedItems.length : scopedItems.filter((i) => i.reviewStatus === s).length
@@ -126,10 +126,10 @@ export default function WrongBookPage() {
                 key={s}
                 type="button"
                 onClick={() => setStatus(s)}
-                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
                   isActive
                     ? 'bg-[#2f5d50] text-white shadow-xs'
-                    : 'bg-[#fbfaf5] border border-[#e0d9cb] text-[#66756c] hover:bg-[#f5ede1]'
+                    : 'bg-[#fbfaf5] border border-[#e0d9cb] text-[#66756c]'
                 }`}
               >
                 {s} ({count})
@@ -138,62 +138,60 @@ export default function WrongBookPage() {
           })}
         </div>
 
-        {/* 搜索与知识点过滤 */}
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <Field label="搜索题目">
-            <input
-              className={inputClass}
-              placeholder="输入关键词、题目或知识点…"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-            />
-          </Field>
-          <Field label="知识点筛选">
-            <select
-              className={inputClass}
-              value={knowledge}
-              onChange={(event) => setKnowledge(event.target.value)}
-            >
-              <option value="全部">全部知识点 ({scopedItems.length})</option>
-              {knowledgeNames.map((name) => {
-                const count = items.filter(
-                  (i) => i.knowledgePoint === name || i.knowledgePoints.includes(name),
-                ).length
-                return (
-                  <option key={name} value={name}>
-                    {name} ({count})
-                  </option>
-                )
-              })}
-            </select>
-          </Field>
+        {/* 紧凑搜索与知识点下拉 */}
+        <div className="mt-2.5 grid grid-cols-2 gap-2">
+          <input
+            className="w-full rounded-xl border border-[#d9d2c3] bg-white px-2.5 py-1.5 text-xs outline-none focus:border-[#2f5d50]"
+            placeholder="搜索关键词/题目…"
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+          />
+          <select
+            className="w-full rounded-xl border border-[#d9d2c3] bg-white px-2 py-1.5 text-xs outline-none focus:border-[#2f5d50]"
+            value={knowledge}
+            onChange={(event) => setKnowledge(event.target.value)}
+          >
+            <option value="全部">全部考点 ({scopedItems.length})</option>
+            {knowledgeNames.map((name) => {
+              const count = items.filter(
+                (i) => i.knowledgePoint === name || i.knowledgePoints.includes(name),
+              ).length
+              return (
+                <option key={name} value={name}>
+                  {name} ({count})
+                </option>
+              )
+            })}
+          </select>
         </div>
       </section>
 
       {/* 错题卡片列表 */}
       {filtered.length === 0 ? (
-        <div className="rounded-3xl bg-white p-12 text-center text-[#66756c] shadow-sm border border-[#ece6d8]">
-          <span className="text-4xl">🎉</span>
-          <p className="mt-3 text-base font-medium">还没有符合条件的错题</p>
-          <p className="mt-1 text-xs text-[#8c9c93]">拍照识别错题后会自动收录到这里。</p>
+        <div className="rounded-2xl bg-white p-8 text-center text-[#66756c] shadow-xs border border-[#ece6d8]">
+          <span className="text-3xl">🎉</span>
+          <p className="mt-2 text-sm font-semibold">还没有符合条件的错题</p>
+          <p className="mt-0.5 text-xs text-[#8c9c93]">拍照识别错题后会自动收录到这里。</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2.5">
           {filtered.map((item) => (
             <div
               key={item.id}
-              className="rounded-3xl bg-white p-5 shadow-sm border border-[#ece6d8] transition-all hover:shadow-md"
+              className="rounded-2xl bg-white p-3.5 sm:p-4 shadow-xs border border-[#ece6d8] transition-all hover:shadow-sm"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#f5f1e8] pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-lg bg-[#2f5d50]/10 px-2.5 py-1 text-xs font-bold text-[#2f5d50]">
-                    {SUBJECT_LABELS[parseSubjectId(item.subject)]} · {item.knowledgePoint}
+              <div className="flex items-center justify-between gap-2 border-b border-[#f5f1e8] pb-2">
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="rounded-md bg-[#2f5d50]/10 px-1.5 py-0.5 text-[11px] font-bold text-[#2f5d50] shrink-0">
+                    {SUBJECT_LABELS[parseSubjectId(item.subject)]}
                   </span>
-                  <span className="text-xs text-[#8c9c93]">{item.textbookUnit}</span>
+                  <span className="text-xs font-bold text-[#243026] truncate">
+                    {item.knowledgePoint}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2 text-xs">
+                <div className="flex items-center gap-1.5 text-xs shrink-0">
                   <span
-                    className={`rounded-lg px-2.5 py-0.5 font-bold ${
+                    className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold ${
                       item.reviewStatus === '已掌握'
                         ? 'bg-emerald-100 text-emerald-800'
                         : item.reviewStatus === '已复习'
@@ -203,45 +201,49 @@ export default function WrongBookPage() {
                   >
                     {item.reviewStatus}
                   </span>
-                  <span className="text-[#8c9c93]">{formatDateTime(item.savedAt)}</span>
+                  <span className="text-[10px] text-[#a8a29e] hidden sm:inline">{formatDateTime(item.savedAt)}</span>
                 </div>
               </div>
 
               {/* 题目内容 */}
-              <Link to={`/wrong-book/${item.id}`} className="block mt-3 group">
-                <div className="text-base font-normal leading-relaxed text-[#243026] group-hover:text-[#2f5d50]">
-                  <MathView text={item.correctedText || item.originalText} />
-                </div>
-              </Link>
+              <div className="mt-2 text-xs sm:text-sm leading-relaxed text-[#243026]">
+                <MathView text={item.correctedText || item.originalText} />
+              </div>
 
-              {/* 错因与快捷操作 */}
-              <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-[#f5f1e8] pt-3">
-                <div className="text-xs text-[#9a6b4a]">
-                  {item.errorCause ? (
-                    <span>
-                      错因：<strong>{item.errorCause}</strong>
-                      {item.errorCauseNote ? ` (${item.errorCauseNote})` : ''}
-                    </span>
-                  ) : (
-                    <span className="text-[#8c9c93]">未标记错因</span>
-                  )}
+              {/* 作答与答案对比 */}
+              <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl bg-[#fbfaf5] p-2 text-xs border border-[#eee7d8]">
+                <div>
+                  <span className="text-[#991b1b] font-medium block text-[11px]">当时作答：</span>
+                  <MathView text={item.studentAnswer || '未填写'} as="span" />
                 </div>
+                <div>
+                  <span className="text-[#166534] font-medium block text-[11px]">参考答案：</span>
+                  <MathView text={item.correctAnswer || '无'} as="span" />
+                </div>
+              </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedVariantQuestion(item)}
-                    className="rounded-xl bg-[#fef3c7] px-3 py-1.5 text-xs font-bold text-[#b45309] hover:bg-[#fde68a]"
-                  >
-                    🎯 练同类题
-                  </button>
-                  <Link
-                    to={`/wrong-book/${item.id}`}
-                    className="rounded-xl border border-[#d9d2c3] bg-white px-3 py-1.5 text-xs font-semibold text-[#4a5850] hover:bg-[#fbfaf5]"
-                  >
-                    查看详情 →
-                  </Link>
-                </div>
+              {item.errorCause && (
+                <p className="mt-1.5 text-[11px] text-[#9a6b4a]">
+                  <strong>错因分析：</strong>
+                  {item.errorCause} {item.errorCauseNote ? `(${item.errorCauseNote})` : ''}
+                </p>
+              )}
+
+              {/* 卡片底部操作按钮 */}
+              <div className="mt-2.5 flex items-center justify-between border-t border-[#f5f1e8] pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedVariantQuestion(item)}
+                  className="inline-flex items-center gap-1 rounded-xl bg-[#fef3c7] px-2.5 py-1 text-xs font-bold text-[#b45309] hover:bg-[#fde68a]"
+                >
+                  🎯 练同类题
+                </button>
+                <Link
+                  to={`/wrong-book/${item.id}`}
+                  className="rounded-xl border border-[#d9d2c3] px-3 py-1 text-xs font-semibold text-[#2f5d50] hover:bg-[#fbfaf5]"
+                >
+                  查看详情 & 讲解 →
+                </Link>
               </div>
             </div>
           ))}

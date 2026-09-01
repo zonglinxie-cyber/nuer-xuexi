@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import ConfettiEffect from '../components/ConfettiEffect'
 import MathView from '../components/MathView'
@@ -28,12 +28,18 @@ export default function WrongDetailPage() {
   const [speaking, setSpeaking] = useState(false)
   const [showCelebration, setShowCelebration] = useState(false)
 
+  useEffect(() => {
+    return () => {
+      stopSpeech()
+    }
+  }, [])
+
   if (!item) {
     return (
-      <div className="rounded-3xl bg-white p-6 shadow-sm border border-[#ece6d8]">
-        <p className="text-base text-[#4a5850]">没有找到这道错题。</p>
-        <Link className="mt-4 inline-block font-semibold text-[#2f5d50] underline" to="/wrong-book">
-          返回错题本
+      <div className="rounded-2xl bg-white p-5 shadow-xs border border-[#ece6d8]">
+        <p className="text-sm text-[#4a5850]">没有找到这道错题。</p>
+        <Link className="mt-2 inline-block text-xs font-semibold text-[#2f5d50] underline" to="/wrong-book">
+          ← 返回错题本
         </Link>
       </div>
     )
@@ -49,14 +55,14 @@ export default function WrongDetailPage() {
     try {
       upsertWrongQuestion(next)
       setItem(next)
-      setNotice({ type: 'success', message: `复习状态已更新为“${status}”。` })
+      setNotice({ type: 'success', message: `状态已更新为“${status}”。` })
       if (status === '已掌握') {
         setShowCelebration(true)
       }
     } catch (error) {
       setNotice({
         type: 'error',
-        message: error instanceof Error ? error.message : '更新复习状态失败。',
+        message: error instanceof Error ? error.message : '更新状态失败。',
       })
     }
   }
@@ -67,12 +73,18 @@ export default function WrongDetailPage() {
       setSpeaking(false)
       return
     }
-    setSpeaking(true)
     const speechContent = `题目：${item?.correctedText || item?.originalText}。解析思路：${item?.explanation}。解题步骤：${item?.stepByStep.join('。')}`
-    speakText(speechContent, {
+    const ok = speakText(speechContent, {
       onEnd: () => setSpeaking(false),
-      onError: () => setSpeaking(false),
+      onError: (err) => {
+        setSpeaking(false)
+        setNotice({
+          type: 'error',
+          message: typeof err === 'string' ? err : '朗读失败，请检查手机是否静音。',
+        })
+      },
     })
+    if (ok) setSpeaking(true)
   }
 
   function handleDelete() {
@@ -92,7 +104,7 @@ export default function WrongDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4">
       <ConfettiEffect
         active={showCelebration}
         title="🌟 恭喜完全掌握这道错题！"
@@ -115,32 +127,33 @@ export default function WrongDetailPage() {
         <PrintSheetModal questions={[item]} onClose={() => setShowPrintModal(false)} />
       )}
 
-      <div className="flex items-center justify-between">
+      {/* 顶部操作条 */}
+      <div className="flex items-center justify-between gap-2">
         <button
-          className="text-sm font-semibold text-[#2f5d50] hover:underline"
+          className="text-xs sm:text-sm font-bold text-[#2f5d50] hover:underline"
           type="button"
           onClick={() => navigate('/wrong-book')}
         >
           ← 返回错题本
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {isSpeechSupported() && (
             <button
               type="button"
               onClick={handleSpeech}
-              className={`rounded-xl px-3 py-1.5 text-xs font-semibold ${
+              className={`rounded-xl px-2.5 py-1.5 text-xs font-bold ${
                 speaking
                   ? 'bg-rose-100 text-rose-700 animate-pulse'
                   : 'bg-[#2f5d50]/10 text-[#2f5d50]'
               }`}
             >
-              {speaking ? '⏹️ 停止朗读' : '🔊 朗读题目与讲解'}
+              {speaking ? '⏹️ 停止' : '🔊 朗读讲解'}
             </button>
           )}
           <button
             type="button"
             onClick={() => setShowPrintModal(true)}
-            className="rounded-xl border border-[#d9d2c3] bg-white px-3 py-1.5 text-xs font-semibold text-[#4a5850] hover:bg-[#fbfaf5]"
+            className="rounded-xl border border-[#d9d2c3] bg-white px-2.5 py-1.5 text-xs font-bold text-[#4a5850]"
           >
             🖨️ 打印单题
           </button>
@@ -149,89 +162,89 @@ export default function WrongDetailPage() {
 
       <NoticeBanner notice={notice} />
 
-      {/* 核心功能强调：举一反三横幅 */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-3xl bg-linear-to-r from-[#fef3c7] to-[#fde68a] p-5 shadow-xs border border-[#f59e0b]/30">
+      {/* 举一反三横幅 */}
+      <div className="flex items-center justify-between gap-2 rounded-2xl bg-linear-to-r from-[#fef3c7] to-[#fde68a] p-3 sm:p-4 shadow-xs border border-[#f59e0b]/30">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">🎯</span>
-            <h3 className="text-lg font-bold text-[#92400e]">做会原题还不够？AI 举一反三练同类题！</h3>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xl">🎯</span>
+            <h3 className="text-xs sm:text-sm font-bold text-[#92400e]">AI 举一反三 · 练同类题</h3>
           </div>
-          <p className="mt-1 text-xs leading-5 text-[#b45309]">
-            针对此题易错考点，AI 即时生成 3 道变式题，检验孩子是否真正搞懂。
+          <p className="mt-0.5 text-[11px] text-[#b45309]">
+            生成 3 道同考点同类题，检验是否真正掌握
           </p>
         </div>
         <button
           type="button"
           onClick={() => setShowVariantModal(true)}
-          className="w-full sm:w-auto shrink-0 rounded-2xl bg-[#b45309] px-5 py-3 text-sm font-bold text-white shadow-md hover:bg-[#92400e]"
+          className="shrink-0 rounded-xl bg-[#b45309] px-3.5 py-2 text-xs sm:text-sm font-bold text-white shadow-xs hover:bg-[#92400e]"
         >
-          🚀 立即出 3 道相似题
+          🚀 立即出题
         </button>
       </div>
 
       {/* 错题详情主卡片 */}
-      <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 border border-[#ece6d8]">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#f0ece1] pb-3">
-          <div className="flex items-center gap-2">
-            <span className="rounded-lg bg-[#2f5d50]/10 px-2.5 py-1 text-xs font-bold text-[#2f5d50]">
-              {SUBJECT_LABELS[parseSubjectId(item.subject)]} · {item.knowledgePoint}
+      <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
+        <div className="flex items-center justify-between gap-2 border-b border-[#f0ece1] pb-2">
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="rounded-md bg-[#2f5d50]/10 px-1.5 py-0.5 text-[11px] font-bold text-[#2f5d50] shrink-0">
+              {SUBJECT_LABELS[parseSubjectId(item.subject)]}
             </span>
-            <span className="text-xs text-[#66756c]">{item.textbookUnit}</span>
+            <span className="text-xs font-bold text-[#243026] truncate">{item.knowledgePoint}</span>
           </div>
-          <span className="text-xs text-[#66756c]">保存于 {formatDateTime(item.savedAt)}</span>
+          <span className="text-[11px] text-[#8c9c93] shrink-0">{formatDateTime(item.savedAt)}</span>
         </div>
 
         {item.imageDataUrl && (
-          <div className="mt-4 overflow-hidden rounded-2xl border border-[#e5ded0] bg-[#fbfaf5]">
+          <div className="mt-2.5 overflow-hidden rounded-xl border border-[#e5ded0] bg-[#fbfaf5]">
             <img
               src={item.imageDataUrl}
               alt="错题原图"
-              className="max-h-80 w-full object-contain p-2"
+              className="max-h-48 sm:max-h-64 w-full object-contain p-1"
             />
           </div>
         )}
 
-        <div className="mt-5 space-y-4 text-base leading-7 text-[#243026]">
-          <div className="rounded-2xl bg-[#fbfaf5] p-4 border border-[#eee7d8]">
-            <strong className="text-[#2f5d50] block mb-1">📝 题目：</strong>
+        <div className="mt-3 space-y-2.5 text-xs sm:text-sm leading-relaxed text-[#243026]">
+          <div className="rounded-xl bg-[#fbfaf5] p-3 border border-[#eee7d8]">
+            <strong className="text-[#2f5d50] block mb-0.5 text-xs">📝 题目：</strong>
             <MathView text={item.correctedText || item.originalText} />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl bg-rose-50/70 p-3.5 border border-rose-200/80">
-              <strong className="text-rose-800 text-sm block">❌ 学生作答：</strong>
-              <div className="mt-1 text-rose-900 font-medium">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl bg-rose-50/70 p-2.5 border border-rose-200/80">
+              <strong className="text-rose-800 text-[11px] block">❌ 当时作答：</strong>
+              <div className="mt-0.5 text-rose-900 font-medium">
                 <MathView text={item.studentAnswer || '未填写'} />
               </div>
             </div>
 
-            <div className="rounded-2xl bg-emerald-50/70 p-3.5 border border-emerald-200/80">
-              <strong className="text-emerald-800 text-sm block">✅ 正确答案：</strong>
-              <div className="mt-1 text-emerald-900 font-medium">
+            <div className="rounded-xl bg-emerald-50/70 p-2.5 border border-emerald-200/80">
+              <strong className="text-emerald-800 text-[11px] block">✅ 参考答案：</strong>
+              <div className="mt-0.5 text-emerald-900 font-medium">
                 <MathView text={item.correctAnswer || '未填写'} />
               </div>
             </div>
           </div>
 
           {item.errorCause && (
-            <div className="rounded-2xl bg-[#fef7ee] p-3.5 border border-[#fae8c8] text-sm text-[#78350f]">
-              <strong>🔍 错因剖析：</strong>
+            <div className="rounded-xl bg-[#fef7ee] p-2.5 border border-[#fae8c8] text-xs text-[#78350f]">
+              <strong>🔍 错因分析：</strong>
               <span>{item.errorCause}</span>
               {item.errorCauseNote && <span>（{item.errorCauseNote}）</span>}
             </div>
           )}
 
           {item.explanation && (
-            <div className="rounded-2xl bg-[#fbfaf5] p-4 border border-[#eee7d8]">
-              <strong className="text-[#2f5d50] block mb-1">💡 解题思路与易错点：</strong>
+            <div className="rounded-xl bg-[#fbfaf5] p-3 border border-[#eee7d8]">
+              <strong className="text-[#2f5d50] block mb-0.5 text-xs">💡 考点与思路：</strong>
               <MathView text={item.explanation} />
             </div>
           )}
 
           {item.stepByStep.length > 0 && (
-            <div className="rounded-2xl bg-[#fbfaf5] p-4 border border-[#eee7d8]">
-              <strong className="text-[#2f5d50] block mb-1.5">📋 分步演算过程：</strong>
-              <ol className="list-decimal pl-5 space-y-1 text-sm">
+            <div className="rounded-xl bg-[#fbfaf5] p-3 border border-[#eee7d8]">
+              <strong className="text-[#2f5d50] block mb-1 text-xs">📋 详细解题步骤：</strong>
+              <ol className="list-decimal pl-4 space-y-0.5 text-xs">
                 {item.stepByStep.map((step) => (
                   <li key={step}>
                     <MathView text={step} as="span" />
@@ -242,7 +255,7 @@ export default function WrongDetailPage() {
           )}
 
           {item.notes && (
-            <p className="text-sm text-[#66756c]">
+            <p className="text-xs text-[#66756c]">
               <strong>家长备忘：</strong>
               {item.notes}
             </p>
@@ -250,24 +263,24 @@ export default function WrongDetailPage() {
         </div>
       </section>
 
-      {/* 复习状态与删除操作 */}
-      <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 border border-[#ece6d8]">
-        <h3 className="text-base font-bold text-[#243026] mb-3">当前复习掌握进度</h3>
-        <div className="grid grid-cols-3 gap-2">
+      {/* 复习状态切换 */}
+      <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
+        <h3 className="text-xs sm:text-sm font-bold text-[#243026] mb-2">当前掌握状态</h3>
+        <div className="grid grid-cols-3 gap-1.5">
           {statuses.map((status) => {
             const isCurrent = item.reviewStatus === status
             return (
               <button
                 key={status}
                 type="button"
-                className={`rounded-2xl py-3 text-sm font-bold transition-all ${
+                className={`rounded-xl py-2 text-xs sm:text-sm font-bold transition-all ${
                   isCurrent
                     ? status === '已掌握'
-                      ? 'bg-emerald-600 text-white shadow-sm'
+                      ? 'bg-emerald-600 text-white shadow-xs'
                       : status === '已复习'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'bg-[#2f5d50] text-white shadow-sm'
-                    : 'border border-[#d9d2c3] bg-[#fbfaf5] text-[#66756c] hover:bg-[#f2eee4]'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-[#2f5d50] text-white shadow-xs'
+                    : 'border border-[#d9d2c3] bg-[#fbfaf5] text-[#66756c]'
                 }`}
                 onClick={() => handleStatus(status)}
               >
@@ -277,21 +290,16 @@ export default function WrongDetailPage() {
           })}
         </div>
 
-        {item.lastReviewedAt ? (
-          <p className="mt-3 text-xs text-[#66756c]">
-            最近复习时间：{formatDateTime(item.lastReviewedAt)}
-          </p>
-        ) : (
-          <p className="mt-3 text-xs text-[#66756c]">还没有复习记录。</p>
-        )}
-
-        <div className="mt-6 pt-4 border-t border-[#f0ece1]">
+        <div className="mt-3 pt-2.5 border-t border-[#f0ece1] flex items-center justify-between">
+          <span className="text-[11px] text-[#8c9c93]">
+            {item.lastReviewedAt ? `最近复习：${formatDateTime(item.lastReviewedAt)}` : '未复习'}
+          </span>
           <button
-            className="text-xs text-[#9a6b4a] hover:underline"
+            className="text-[11px] text-[#9a6b4a] hover:underline"
             type="button"
             onClick={handleDelete}
           >
-            🗑️ 从错题本彻底删除这道题
+            🗑️ 删除此错题
           </button>
         </div>
       </section>

@@ -42,67 +42,70 @@ export default function ResultEditor({
   const showLatex = subject === 'math'
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+      {/* 快捷对错打分栏 */}
       <div>
-        <label className="block text-sm font-semibold text-[#4a5850] mb-1.5">
+        <label className="block text-xs font-bold text-[#4a5850] mb-1">
           对错判断（点击快速切换）
         </label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-4 gap-1.5">
           {judgements.map((item) => {
             const isSelected = result.is_correct === item.label
             return (
               <button
                 key={item.label}
                 type="button"
-                className={`rounded-xl border py-2.5 px-3 text-sm font-bold transition-all ${item.color} ${
+                className={`rounded-xl border py-1.5 px-1 sm:py-2 sm:px-2 text-xs sm:text-sm font-bold transition-all text-center ${item.color} ${
                   isSelected
                     ? 'ring-2 ring-offset-1 ring-[#2f5d50] shadow-xs'
                     : 'opacity-70 border-dashed'
                 }`}
                 onClick={() => onChange({ ...result, is_correct: item.label })}
               >
-                {isSelected ? '✓ ' : ''}
-                {item.label}
+                {isSelected ? '✓' : ''} {item.label}
               </button>
             )
           })}
         </div>
       </div>
 
-      <Field label={showLatex ? '识别出的题目（支持 LaTeX 公式 $...$）' : '识别出的题目（请先核对文字）'}>
+      {/* 题目输入与预览 */}
+      <Field label={showLatex ? '识别题目（支持 LaTeX 公式 $...$）' : '识别题目（请核对文字）'}>
         <textarea
-          className={`${inputClass} min-h-24 font-mono text-sm`}
+          className={`${inputClass} min-h-16 sm:min-h-20 font-mono text-xs sm:text-sm leading-snug`}
           value={result.recognized_text}
           onChange={(event) => onChange({ ...result, recognized_text: event.target.value })}
         />
         {result.recognized_text && (
-          <div className="mt-2 rounded-xl bg-[#fbfaf5] p-3 text-sm border border-[#e8dfcf]">
-            <span className="text-xs font-bold text-[#2f5d50] block mb-1">
-              {showLatex ? '公式排版预览：' : '题目预览：'}
+          <div className="mt-1.5 rounded-xl bg-[#fbfaf5] p-2 sm:p-2.5 text-xs border border-[#e8dfcf]">
+            <span className="text-[11px] font-bold text-[#2f5d50] block mb-0.5">
+              {showLatex ? '公式印刷体预览：' : '排版预览：'}
             </span>
             <MathView text={result.recognized_text} />
           </div>
         )}
       </Field>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="学生答案（可修改）">
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="学生作答">
           <input
             className={inputClass}
             value={result.student_answer}
+            placeholder="图片中的作答"
             onChange={(event) => onChange({ ...result, student_answer: event.target.value })}
           />
         </Field>
-        <Field label="参考答案（可修改）">
+        <Field label="参考答案">
           <input
             className={inputClass}
             value={result.ai_answer}
+            placeholder="标准参考答案"
             onChange={(event) => onChange({ ...result, ai_answer: event.target.value })}
           />
         </Field>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-2">
         <Field label="知识点归类">
           <select
             className={inputClass}
@@ -123,29 +126,29 @@ export default function ResultEditor({
             )}
             {knowledgePoints.map((item) => (
               <option key={item.id} value={item.name}>
-                {item.name}（{item.unit}）
+                {item.name}
               </option>
             ))}
           </select>
         </Field>
 
-        <div className="flex items-center pt-6">
-          <label className="flex items-center gap-2.5 text-sm font-medium text-[#4a5850] cursor-pointer">
+        <div className="flex items-center pt-4 sm:pt-5">
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-[#4a5850] cursor-pointer">
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-gray-300 text-[#2f5d50]"
+              className="h-3.5 w-3.5 rounded border-gray-300 text-[#2f5d50]"
               checked={needReview}
               onChange={(event) => onMetaChange({ needReview: event.target.checked })}
             />
-            <span>标记为“需重点复习”</span>
+            <span>标记为“需复习”</span>
           </label>
         </div>
       </div>
 
       {isWrongOrPartial && (
-        <div className="rounded-2xl bg-[#fef7ee] p-4 border border-[#fae8c8] space-y-3">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="错因分类（用于生成举一反三变式题）">
+        <div className="rounded-xl bg-[#fef7ee] p-2.5 sm:p-3 border border-[#fae8c8] space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="错因分类">
               <select
                 className={inputClass}
                 value={errorCause}
@@ -164,11 +167,11 @@ export default function ResultEditor({
                 ))}
               </select>
             </Field>
-            <Field label="错因补充说明">
+            <Field label="错因补充">
               <input
                 className={inputClass}
                 value={errorCauseNote}
-                placeholder="例如：哪个字写错了，或哪一句没看懂"
+                placeholder="例如：看错数字/未写单位"
                 onChange={(event) => onMetaChange({ errorCauseNote: event.target.value })}
               />
             </Field>
@@ -176,11 +179,11 @@ export default function ResultEditor({
         </div>
       )}
 
-      <Field label="家长备注">
+      <Field label="家长备注（可选）">
         <input
           className={inputClass}
           value={notes}
-          placeholder="可写鼓励的话或复习提示"
+          placeholder="可写鼓励或复习提示"
           onChange={(event) => onMetaChange({ notes: event.target.value })}
         />
       </Field>

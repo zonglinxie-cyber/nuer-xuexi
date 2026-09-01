@@ -14,6 +14,7 @@ export default function ExplanationPanel({
   onModeChange: (mode: ExplanationMode) => void
 }) {
   const [speaking, setSpeaking] = useState(false)
+  const [speechError, setSpeechError] = useState('')
 
   useEffect(() => {
     return () => {
@@ -33,73 +34,77 @@ export default function ExplanationPanel({
         ? `考点分析：${result.explanation}。启发思考：${result.hints.join('。')}`
         : `解题步骤：${result.step_by_step.join('。')}。参考答案：${result.ai_answer}`
 
-    setSpeaking(true)
-    speakText(textToRead, {
+    setSpeechError('')
+    const ok = speakText(textToRead, {
       onEnd: () => setSpeaking(false),
-      onError: () => setSpeaking(false),
+      onError: (err) => {
+        setSpeaking(false)
+        setSpeechError(typeof err === 'string' ? err : '朗读失败，请检查手机是否静音。')
+      },
     })
+    if (ok) setSpeaking(true)
   }
 
   return (
-    <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-6 border border-[#ece6d8]">
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <h3 className="text-lg font-bold text-[#243026] sm:text-xl">💡 启发式讲解</h3>
-          {isSpeechSupported() && (
-            <button
-              type="button"
-              onClick={handleToggleSpeech}
-              className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
-                speaking
-                  ? 'bg-[#fee2e2] text-[#991b1b] animate-pulse'
-                  : 'bg-[#2f5d50]/10 text-[#2f5d50] hover:bg-[#2f5d50]/20'
-              }`}
-            >
-              {speaking ? '⏹️ 停止朗读' : '🔊 语音听讲解'}
-            </button>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex">
+    <div className="space-y-2.5">
+      {/* 顶部模式切换与语音 */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-1.5">
           <button
             type="button"
-            className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
+            className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
               mode === 'guide'
                 ? 'bg-[#2f5d50] text-white shadow-xs'
                 : 'border border-[#d9d2c3] bg-white text-[#4a5850] hover:bg-[#fbfaf5]'
             }`}
             onClick={() => onModeChange('guide')}
           >
-            🌱 引导模式（不给答案）
+            🌱 引导模式
           </button>
           <button
             type="button"
-            className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
+            className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
               mode === 'answer'
                 ? 'bg-[#2f5d50] text-white shadow-xs'
                 : 'border border-[#d9d2c3] bg-white text-[#4a5850] hover:bg-[#fbfaf5]'
             }`}
             onClick={() => onModeChange('answer')}
           >
-            📖 完整答案模式
+            📖 完整答案
           </button>
         </div>
+
+        {isSpeechSupported() && (
+          <button
+            type="button"
+            onClick={handleToggleSpeech}
+            className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all ${
+              speaking
+                ? 'bg-rose-100 text-rose-700 animate-pulse'
+                : 'bg-[#2f5d50]/10 text-[#2f5d50] hover:bg-[#2f5d50]/20'
+            }`}
+          >
+            {speaking ? '⏹️ 停止' : '🔊 语音讲解'}
+          </button>
+        )}
       </div>
 
-      <div className="mt-5 space-y-4 text-base leading-7 text-[#243026]">
-        <div className="rounded-2xl bg-[#fbfaf5] p-4 border border-[#eee7d8]">
-          <strong className="text-[#2f5d50]">🎯 考点与思路：</strong>
-          <div className="mt-1">
-            <MathView text={result.explanation || '请先核对题目，再看讲解。'} />
-          </div>
+      {speechError && <p className="text-xs text-[#92400e]">{speechError}</p>}
+
+      {/* 讲解主体卡片 */}
+      <div className="space-y-2.5 text-xs sm:text-sm leading-relaxed text-[#243026]">
+        <div className="rounded-xl bg-[#fbfaf5] p-3 border border-[#eee7d8]">
+          <strong className="text-[#2f5d50] block mb-0.5">🎯 考点与点拨：</strong>
+          <MathView text={result.explanation || '请先核对题目，再看讲解。'} />
         </div>
 
         {(result.question_type === '应用题' || result.known_conditions.length > 0) && (
-          <div className="rounded-2xl bg-[#fbfaf5] p-4 border border-[#eee7d8]">
-            <p className="font-semibold text-[#2f5d50]">📋 {knownConditionsLabel(result.subject)}：</p>
-            <ul className="mt-1.5 list-disc pl-5 space-y-1">
+          <div className="rounded-xl bg-[#fbfaf5] p-3 border border-[#eee7d8]">
+            <p className="font-semibold text-[#2f5d50] mb-0.5">📋 {knownConditionsLabel(result.subject)}：</p>
+            <ul className="list-disc pl-4 space-y-0.5">
               {(result.known_conditions.length > 0
                 ? result.known_conditions
-                : ['请和孩子一起圈出题目中的已知数字和单位。']
+                : ['请和孩子一起圈出题目中的已知信息。']
               ).map((item) => (
                 <li key={item}>
                   <MathView text={item} as="span" />
@@ -107,7 +112,7 @@ export default function ExplanationPanel({
               ))}
             </ul>
             {result.asked_question && (
-              <p className="mt-2 text-sm text-[#9a6b4a]">
+              <p className="mt-1.5 text-[#9a6b4a]">
                 <strong>{askedQuestionLabel(result.subject)}</strong>
                 <MathView text={result.asked_question} as="span" />
               </p>
@@ -116,9 +121,9 @@ export default function ExplanationPanel({
         )}
 
         {mode === 'guide' ? (
-          <div className="rounded-2xl bg-[#fef9ee] p-4 border border-[#fae8c8]">
-            <p className="font-bold text-[#b45309]">🤔 引导孩子想一想：</p>
-            <ol className="mt-2 list-decimal space-y-2 pl-5 text-[#78350f]">
+          <div className="rounded-xl bg-[#fef9ee] p-3 border border-[#fae8c8]">
+            <p className="font-bold text-[#b45309] mb-1">🤔 启发思考问题：</p>
+            <ol className="list-decimal space-y-1 pl-4 text-[#78350f]">
               {(result.hints.length > 0
                 ? result.hints
                 : result.subject === 'chinese'
@@ -132,16 +137,13 @@ export default function ExplanationPanel({
                 </li>
               ))}
             </ol>
-            <p className="mt-3 text-xs text-[#92400e]">
-              💡 引导模式鼓励孩子自己动脑，想过之后再点右上角“完整答案模式”对照。
-            </p>
           </div>
         ) : (
-          <div className="rounded-2xl bg-[#f0fdf4] p-4 border border-[#bbf7d0] space-y-3">
+          <div className="rounded-xl bg-[#f0fdf4] p-3 border border-[#bbf7d0] space-y-2">
             <p className="font-bold text-[#166534]">
               {result.subject === 'math' ? '📝 详细解题步骤：' : '📝 对照讲解：'}
             </p>
-            <ol className="list-decimal space-y-2 pl-5 text-[#14532d]">
+            <ol className="list-decimal space-y-1 pl-4 text-[#14532d]">
               {(result.step_by_step.length > 0
                 ? result.step_by_step
                 : ['请家长先和孩子一起看题目，再对照参考说法。']
@@ -151,13 +153,13 @@ export default function ExplanationPanel({
                 </li>
               ))}
             </ol>
-            <div className="rounded-xl bg-white p-3.5 border border-[#86efac] text-[#166534]">
-              <strong>参考正确答案：</strong>
+            <div className="rounded-lg bg-white p-2.5 border border-[#86efac] text-[#166534] font-medium">
+              <strong>参考答案：</strong>
               <MathView text={result.ai_answer || '暂无确定答案'} as="span" className="font-bold ml-1" />
             </div>
           </div>
         )}
       </div>
-    </section>
+    </div>
   )
 }

@@ -56,12 +56,14 @@ export default function VariantPracticeModal({
       setSpeakingId(null)
       return
     }
-    stopSpeech()
-    setSpeakingId(id)
-    speakText(text, {
+    const ok = speakText(text, {
       onEnd: () => setSpeakingId(null),
-      onError: () => setSpeakingId(null),
+      onError: (err) => {
+        setSpeakingId(null)
+        setError(typeof err === 'string' ? err : '朗读失败，请检查手机是否静音。')
+      },
     })
+    if (ok) setSpeakingId(id)
   }
 
   function handleMarkMastered() {
@@ -86,29 +88,29 @@ export default function VariantPracticeModal({
       />
 
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-xs p-3 sm:p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4"
         onClick={onClose}
       >
         <div
-          className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-3xl bg-white shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+          className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
           onClick={(e) => e.stopPropagation()}
         >
           {/* 头部 */}
-          <div className="flex items-center justify-between border-b border-[#ece6d8] bg-[#fbfaf5] px-6 py-4">
-            <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#fef3c7] text-xl">
+          <div className="flex items-center justify-between border-b border-[#ece6d8] bg-[#fbfaf5] px-3.5 py-2.5 sm:px-5 sm:py-3.5">
+            <div className="flex items-center gap-1.5">
+              <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl bg-[#fef3c7] text-base sm:text-lg">
                 🎯
               </span>
               <div>
-                <h3 className="text-lg font-bold text-[#243026]">举一反三 · 练同类题</h3>
-                <p className="text-xs text-[#66756c]">
-                  针对【{wrongQuestion.knowledgePoint}】智能生成 3 道变式题
+                <h3 className="text-xs sm:text-sm font-bold text-[#243026]">举一反三 · 练同类题</h3>
+                <p className="text-[11px] text-[#66756c]">
+                  针对【{wrongQuestion.knowledgePoint}】生成 3 道变式题
                 </p>
               </div>
             </div>
             <button
               type="button"
-              className="text-[#66756c] hover:text-[#243026] text-xl px-2"
+              className="text-[#66756c] hover:text-[#243026] text-base px-2"
               onClick={onClose}
             >
               ✕
@@ -116,39 +118,39 @@ export default function VariantPracticeModal({
           </div>
 
           {/* 错题原题速览 */}
-          <div className="bg-[#f5ede1] px-6 py-3 border-b border-[#e5ded0] text-xs leading-5 text-[#5d4a28]">
+          <div className="bg-[#f5ede1] px-3.5 py-2 border-b border-[#e5ded0] text-xs leading-5 text-[#5d4a28]">
             <strong>原题回顾：</strong>
             <MathView text={wrongQuestion.correctedText || wrongQuestion.originalText} as="span" />
             {wrongQuestion.errorCause && (
-              <span className="ml-2 text-[#9a6b4a]">（易错点：{wrongQuestion.errorCause}）</span>
+              <span className="ml-1 text-[#9a6b4a]">（易错点：{wrongQuestion.errorCause}）</span>
             )}
           </div>
 
           {/* 内容主体 */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3 sm:space-y-4">
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-16 text-[#66756c] space-y-3">
-                <div className="h-8 w-8 animate-spin rounded-full border-3 border-[#2f5d50] border-t-transparent" />
-                <p className="text-sm font-medium">AI 正在精心生成同考点变式练习题，请稍候…</p>
+              <div className="flex flex-col items-center justify-center py-12 text-[#66756c] space-y-2">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#2f5d50] border-t-transparent" />
+                <p className="text-xs font-medium">AI 正在精心生成变式练习题，请稍候…</p>
               </div>
             ) : error ? (
-              <div className="rounded-2xl bg-[#fee2e2] p-4 text-sm text-[#991b1b]">
+              <div className="rounded-xl bg-[#fee2e2] p-3 text-xs text-[#991b1b]">
                 <p>{error}</p>
                 <button
                   type="button"
                   onClick={handleGenerate}
-                  className="mt-3 rounded-xl bg-[#b91c1c] px-4 py-2 text-xs font-semibold text-white"
+                  className="mt-2 rounded-lg bg-[#b91c1c] px-3 py-1 text-xs font-semibold text-white"
                 >
                   重新生成
                 </button>
               </div>
             ) : variants.length === 0 ? (
-              <div className="text-center py-10 text-[#66756c]">
+              <div className="text-center py-8 text-xs text-[#66756c]">
                 <p>点击下方按钮开始生成变式题</p>
                 <button
                   type="button"
                   onClick={handleGenerate}
-                  className="mt-3 rounded-xl bg-[#2f5d50] px-5 py-2.5 text-sm font-semibold text-white"
+                  className="mt-2 rounded-xl bg-[#2f5d50] px-4 py-2 text-xs font-bold text-white"
                 >
                   生成 3 道同类题
                 </button>
@@ -161,72 +163,58 @@ export default function VariantPracticeModal({
                 return (
                   <div
                     key={variant.id}
-                    className="rounded-2xl border border-[#e5ded0] bg-[#fbfaf5] p-4 sm:p-5 space-y-3 shadow-xs"
+                    className="rounded-xl border border-[#e5ded0] bg-[#fbfaf5] p-3 sm:p-4 space-y-2 shadow-2xs"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="inline-flex items-center rounded-lg bg-[#2f5d50]/10 px-2.5 py-1 text-xs font-bold text-[#2f5d50]">
+                      <span className="inline-flex items-center rounded-md bg-[#2f5d50]/10 px-2 py-0.5 text-[11px] font-bold text-[#2f5d50]">
                         第 {index + 1} 题 · {index === 0 ? '基础同型题' : index === 1 ? '情境变式题' : '微拓展题'}
                       </span>
                       {isSpeechSupported() && (
                         <button
                           type="button"
-                          className="flex items-center gap-1 text-xs text-[#2f5d50] hover:underline"
+                          className="flex items-center gap-0.5 text-[11px] text-[#2f5d50] hover:underline"
                           onClick={() => handleSpeech(variant.id, `${variant.questionText}。${variant.hints.join('。')}`)}
                         >
-                          {speakingId === variant.id ? '⏹️ 停止朗读' : '🔊 语音读题'}
+                          {speakingId === variant.id ? '⏹️ 停止' : '🔊 读题'}
                         </button>
                       )}
                     </div>
 
-                    <div className="text-base font-medium leading-relaxed text-[#243026]">
+                    <div className="text-xs sm:text-sm font-medium leading-relaxed text-[#243026]">
                       <MathView text={variant.questionText} />
                     </div>
 
                     {/* 答题区 */}
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                    <div className="flex items-center gap-1.5 pt-1">
                       <input
                         type="text"
-                        placeholder="孩子在此输入作答结果…"
+                        placeholder="输入作答结果…"
                         value={userAns}
                         onChange={(e) =>
                           setUserAnswers((prev) => ({ ...prev, [variant.id]: e.target.value }))
                         }
-                        className="flex-1 rounded-xl border border-[#d9d2c3] bg-white px-3 py-2 text-sm"
+                        className="flex-1 rounded-lg border border-[#d9d2c3] bg-white px-2.5 py-1.5 text-xs outline-none focus:border-[#2f5d50]"
                       />
                       <button
                         type="button"
                         onClick={() => handleCheck(variant.id)}
-                        className="rounded-xl bg-[#2f5d50] px-4 py-2 text-sm font-semibold text-white hover:bg-[#23483e]"
+                        className="rounded-lg bg-[#2f5d50] px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-[#254b40] shrink-0"
                       >
-                        {isRevealed ? '重新查看解析' : '核对答案'}
+                        {isRevealed ? '已核对' : '核对答案'}
                       </button>
                     </div>
 
-                    {/* 答案与解析展开 */}
+                    {/* 解析展开区 */}
                     {isRevealed && (
-                      <div className="mt-3 rounded-xl bg-[#efe8d8]/60 p-3.5 text-xs leading-6 text-[#5d4a28] space-y-2 border border-[#ded5c2] animate-in fade-in-50 duration-200">
-                        <div className="flex items-center gap-2 text-sm font-bold text-[#2f5d50]">
+                      <div className="mt-2 rounded-lg bg-white p-2.5 border border-[#86efac] text-xs space-y-1.5">
+                        <div className="flex items-center justify-between text-[#166534] font-bold">
                           <span>参考答案：</span>
-                          <MathView text={variant.answer} as="span" />
+                          <MathView text={variant.answer} as="span" className="text-xs" />
                         </div>
-                        {variant.hints.length > 0 && (
-                          <div>
-                            <strong>思考引导：</strong>
-                            <ul className="list-disc pl-4 space-y-0.5 mt-0.5">
-                              {variant.hints.map((hint, i) => (
-                                <li key={i}>
-                                  <MathView text={hint} as="span" />
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {variant.explanation && (
-                          <div>
-                            <strong>解析与易错点：</strong>
-                            <MathView text={variant.explanation} />
-                          </div>
-                        )}
+                        <div className="text-[#14532d] text-[11px]">
+                          <strong>解题点拨：</strong>
+                          <MathView text={variant.explanation} as="span" />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -235,19 +223,27 @@ export default function VariantPracticeModal({
             )}
           </div>
 
-          {/* 底部操作栏 */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-[#ece6d8] bg-[#fbfaf5] px-6 py-4">
-            <p className="text-xs text-[#66756c]">
-              孩子练习搞懂后，可一键把错题标记为已掌握！
-            </p>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* 底部操作条 */}
+          <div className="flex items-center justify-between border-t border-[#ece6d8] bg-[#fbfaf5] px-3.5 py-2.5 sm:px-5">
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={loading}
+              className="text-xs text-[#66756c] hover:text-[#243026] hover:underline"
+            >
+              🔄 换一组题目
+            </button>
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="flex-1 sm:flex-initial rounded-xl bg-linear-to-r from-[#d97706] to-[#b45309] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:opacity-95"
                 onClick={handleMarkMastered}
-                disabled={alreadyMastered}
+                className={`rounded-xl px-3.5 py-2 text-xs font-bold text-white shadow-2xs transition-all ${
+                  alreadyMastered
+                    ? 'bg-emerald-600'
+                    : 'bg-[#2f5d50] hover:bg-[#254b40]'
+                }`}
               >
-                {alreadyMastered ? '已掌握 🌟' : '🎉 孩子全搞懂了，标记已掌握！'}
+                {alreadyMastered ? '✓ 原题已标记为掌握' : '🎉 全做对了！标记为已掌握'}
               </button>
             </div>
           </div>
