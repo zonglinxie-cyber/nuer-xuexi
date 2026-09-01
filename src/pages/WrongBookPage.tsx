@@ -180,10 +180,84 @@ export default function WrongBookPage() {
 
       {/* 错题卡片列表 */}
       {filtered.length === 0 ? (
-        <div className="rounded-2xl bg-white p-8 text-center text-[#66756c] shadow-xs border border-[#ece6d8]">
-          <span className="text-3xl">🎉</span>
-          <p className="mt-2 text-sm font-semibold">还没有符合条件的错题</p>
-          <p className="mt-0.5 text-xs text-[#8c9c93]">拍照识别错题后会自动收录到这里。</p>
+        <div className="space-y-3">
+          <div className="rounded-2xl bg-white p-6 text-center text-[#66756c] shadow-xs border border-[#ece6d8]">
+            <span className="text-3xl">🎉</span>
+            <p className="mt-2 text-sm font-semibold text-[#243026]">
+              {status === '今日待复习' ? '太棒了！今日没有需要复习的到期错题' : '错题本目前空空如也'}
+            </p>
+            <p className="mt-0.5 text-xs text-[#8c9c93]">
+              {status === '今日待复习'
+                ? '所有到期错题已复习完毕，继续保持！'
+                : '在拍照批改作业时，点击【📕 入错题本】即可将错题归档到这里。'}
+            </p>
+          </div>
+
+          {/* 错题本提分 4 步法 */}
+          <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
+            <h3 className="text-xs sm:text-sm font-bold text-[#243026] mb-2 flex items-center gap-1.5">
+              <span>📘</span> 错题本高效提分 4 步法
+            </h3>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+                <span className="font-bold text-[#2f5d50] block text-[11px]">1. 及时归档</span>
+                <p className="text-[10px] text-[#66756c] mt-0.5 leading-relaxed">
+                  批改作业时，把错题和需复习题目一键保存到错题本。
+                </p>
+              </div>
+              <div className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+                <span className="font-bold text-[#8c5e3c] block text-[11px]">2. 艾宾浩斯复习</span>
+                <p className="text-[10px] text-[#66756c] mt-0.5 leading-relaxed">
+                  根据遗忘临界点（1/2/4/7/15天）定期回看，牢固记忆。
+                </p>
+              </div>
+              <div className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+                <span className="font-bold text-[#3f5f8a] block text-[11px]">3. A4 纸上重做</span>
+                <p className="text-[10px] text-[#66756c] mt-0.5 leading-relaxed">
+                  周末点击右上角【A4 打印卷】，一键生成答题留白试卷。
+                </p>
+              </div>
+              <div className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+                <span className="font-bold text-[#b45309] block text-[11px]">4. 举一反三</span>
+                <p className="text-[10px] text-[#66756c] mt-0.5 leading-relaxed">
+                  做错题变式练习题，防止孩子只死记原题答案。
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* 艾宾浩斯记忆周期图解 */}
+          <section className="rounded-2xl bg-linear-to-r from-[#fef3c7]/60 to-[#fde68a]/60 p-3.5 sm:p-4 border border-[#f59e0b]/30 text-xs">
+            <h4 className="font-bold text-[#92400e] text-[11px] mb-1.5 flex items-center gap-1">
+              <span>🧠</span> 艾宾浩斯记忆曲线时间轴
+            </h4>
+            <div className="flex items-center justify-between text-center gap-1">
+              <div className="flex-1 rounded-lg bg-white/80 p-1.5 border border-amber-200">
+                <span className="font-bold text-amber-900 block text-[10px]">第 1 天</span>
+                <span className="text-[9px] text-[#8c9c93]">首次巩固</span>
+              </div>
+              <span className="text-amber-500 text-[10px]">→</span>
+              <div className="flex-1 rounded-lg bg-white/80 p-1.5 border border-amber-200">
+                <span className="font-bold text-amber-900 block text-[10px]">第 2 天</span>
+                <span className="text-[9px] text-[#8c9c93]">查漏补缺</span>
+              </div>
+              <span className="text-amber-500 text-[10px]">→</span>
+              <div className="flex-1 rounded-lg bg-white/80 p-1.5 border border-amber-200">
+                <span className="font-bold text-amber-900 block text-[10px]">第 4 天</span>
+                <span className="text-[9px] text-[#8c9c93]">强化记忆</span>
+              </div>
+              <span className="text-amber-500 text-[10px]">→</span>
+              <div className="flex-1 rounded-lg bg-white/80 p-1.5 border border-amber-200">
+                <span className="font-bold text-amber-900 block text-[10px]">第 7 天</span>
+                <span className="text-[9px] text-[#8c9c93]">周末周测</span>
+              </div>
+              <span className="text-amber-500 text-[10px]">→</span>
+              <div className="flex-1 rounded-lg bg-white/80 p-1.5 border border-amber-200">
+                <span className="font-bold text-emerald-800 block text-[10px]">第 15 天</span>
+                <span className="text-[9px] text-emerald-600">永久掌握</span>
+              </div>
+            </div>
+          </section>
         </div>
       ) : (
         <div className="space-y-2.5">

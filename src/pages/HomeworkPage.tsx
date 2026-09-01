@@ -393,6 +393,7 @@ export default function HomeworkPage() {
 
       {/* 拍照上传与学科选择卡片 */}
       {!hasResult ? (
+        <>
         <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
           <div className="flex items-center justify-between gap-2 mb-3">
             <h2 className="text-sm sm:text-base font-bold text-[#243026]">📸 上传作业</h2>
@@ -451,6 +452,53 @@ export default function HomeworkPage() {
             )}
           </div>
         </section>
+
+        {/* 拍照小技巧与能力指南 */}
+        <div className="space-y-3">
+          <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
+            <h3 className="text-xs sm:text-sm font-bold text-[#243026] mb-2 flex items-center gap-1.5">
+              <span>💡</span> 拍照批改小妙招
+            </h3>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+                <span className="text-lg block">☀️</span>
+                <span className="font-bold text-[#243026] block mt-1 text-[11px]">光线充足</span>
+                <span className="text-[10px] text-[#66756c] block mt-0.5">避免手影遮挡算式</span>
+              </div>
+              <div className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+                <span className="text-lg block">📐</span>
+                <span className="font-bold text-[#243026] block mt-1 text-[11px]">垂直平拍</span>
+                <span className="text-[10px] text-[#66756c] block mt-0.5">整页题目完整入镜</span>
+              </div>
+              <div className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+                <span className="text-lg block">✍️</span>
+                <span className="font-bold text-[#243026] block mt-1 text-[11px]">字迹清晰</span>
+                <span className="text-[10px] text-[#66756c] block mt-0.5">铅笔擦净减少重影</span>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
+            <h3 className="text-xs sm:text-sm font-bold text-[#243026] mb-2 flex items-center gap-1.5">
+              <span>✨</span> 支持批改的核心题型
+            </h3>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+                <span className="font-bold text-[#2f5d50] block text-[11px]">📐 数学全题型</span>
+                <p className="text-[10px] text-[#66756c] mt-0.5 leading-relaxed">
+                  多位数乘除、列竖式、脱式计算、角的度量、平行梯形、应用题步骤
+                </p>
+              </div>
+              <div className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+                <span className="font-bold text-[#8c5e3c] block text-[11px]">📖 语文与英语</span>
+                <p className="text-[10px] text-[#66756c] mt-0.5 leading-relaxed">
+                  看拼音写汉字、古诗文默写、成语搭配、单词拼写、时态句型改错
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+        </>
       ) : (
         /* 识别完成后：图片折叠为紧凑状态条 */
         <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 border border-[#ece6d8] shadow-2xs text-xs">

@@ -178,6 +178,64 @@ export default function HomePage() {
           </div>
         </Link>
       </div>
+
+      {/* 四年级提分锦囊与公式速查 */}
+      <section className="rounded-2xl bg-white p-3.5 sm:p-5 shadow-xs border border-[#ece6d8]">
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">💡</span>
+            <h3 className="text-xs sm:text-sm font-bold text-[#243026]">四年级重点考点备忘</h3>
+          </div>
+          <span className="text-[10px] text-[#8c9c93]">期末高频必考</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+          <div className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+            <span className="font-bold text-[#2f5d50] block text-[11px] mb-1">📐 运算定律与公顷</span>
+            <p className="text-[11px] text-[#55655c] leading-relaxed">
+              • 乘法分配律：(a + b) × c = ac + bc<br />
+              • 面积换算：1平方千米 = 100公顷 = 1000000平方米
+            </p>
+          </div>
+          <div className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+            <span className="font-bold text-[#8c5e3c] block text-[11px] mb-1">📖 语文阅读与标点</span>
+            <p className="text-[11px] text-[#55655c] leading-relaxed">
+              • 概括段意：谁 + 在什么地方 + 做了什么事<br />
+              • 冒号与引号：提示语在前用冒号引号，在后用句号
+            </p>
+          </div>
+          <div className="rounded-xl bg-[#fbfaf5] p-2.5 border border-[#eee7d8]">
+            <span className="font-bold text-[#3f5f8a] block text-[11px] mb-1">🔤 英语时态与单复数</span>
+            <p className="text-[11px] text-[#55655c] leading-relaxed">
+              • 一般现在时：第三人称单数动词加 -s / -es<br />
+              • 句型：There is (单数/不可数) / There are (复数)
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* 科学辅导三步法 */}
+      <section className="rounded-2xl bg-linear-to-r from-[#2f5d50]/10 to-[#8c5e3c]/10 p-3.5 sm:p-4 border border-[#2f5d50]/20">
+        <h3 className="text-xs font-bold text-[#243026] mb-1.5 flex items-center gap-1">
+          <span>🌟</span> 家长高效辅导三步法
+        </h3>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-xl bg-white/80 p-2 border border-white/60">
+            <span className="text-sm block">1️⃣</span>
+            <span className="text-[11px] font-bold text-[#243026] block mt-0.5">先肯定态度</span>
+            <span className="text-[10px] text-[#66756c] block mt-0.5">多夸思考过程</span>
+          </div>
+          <div className="rounded-xl bg-white/80 p-2 border border-white/60">
+            <span className="text-sm block">2️⃣</span>
+            <span className="text-[11px] font-bold text-[#243026] block mt-0.5">引导说思路</span>
+            <span className="text-[10px] text-[#66756c] block mt-0.5">不急于给答案</span>
+          </div>
+          <div className="rounded-xl bg-white/80 p-2 border border-white/60">
+            <span className="text-sm block">3️⃣</span>
+            <span className="text-[11px] font-bold text-[#243026] block mt-0.5">重做同类题</span>
+            <span className="text-[10px] text-[#66756c] block mt-0.5">举一反三巩固</span>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
