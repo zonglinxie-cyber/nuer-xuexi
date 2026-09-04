@@ -138,8 +138,11 @@ const VARIANT_JSON_SCHEMA = {
 const CONFIDENCE: ConfidenceLevel[] = ['高', '中', '低']
 const QUESTION_TYPES: QuestionType[] = ALL_QUESTION_TYPES
 const JUDGEMENTS: Judgement[] = ['正确', '错误', '部分正确', '无法判断', '需家长确认']
-const RECOGNIZE_TIMEOUT_MS = 75_000
+const RECOGNIZE_TIMEOUT_MS = 180_000
+const TEXT_TASK_TIMEOUT_MS = 120_000
 const TEST_TIMEOUT_MS = 15_000
+const TIMEOUT_HINT =
+  '批改超时了。整页题目多、题目较难时，AI 可能还在看图和推理，不一定是照片太大。请再试一次，也可以先拍少一点题目。'
 const OPENAI_CORS_MESSAGE =
   '浏览器没能连上这个接口。官方 OpenAI 通常不允许网页直接调用。本地用 npm run dev 时，官方地址会自动走代理；如果是打开打包后的网页，请改用兼容接口。'
 
@@ -323,7 +326,7 @@ function friendlyHttpError(status: number, body: string): AiServiceError {
     return new AiServiceError('AI 服务请求太频繁或额度不足，请稍后再试。', 'rate_limit')
   }
   if (body.toLowerCase().includes('timeout')) {
-    return new AiServiceError('网络超时，请检查网络后重试。', 'timeout')
+    return new AiServiceError(TIMEOUT_HINT, 'timeout')
   }
   return new AiServiceError('AI 请求失败，请检查网络、接口地址和模型名称。', 'request_failed')
 }
@@ -362,7 +365,7 @@ function mapFetchError(
     throw new AiServiceError('已取消识别。', 'cancelled')
   }
   if (session.wasTimedOut() || (error instanceof DOMException && error.name === 'AbortError')) {
-    throw new AiServiceError('识别超时。图片较大或网络较慢时请再试一次，也可以换一张更小的照片。', 'timeout')
+    throw new AiServiceError(TIMEOUT_HINT, 'timeout')
   }
   if (isLikelyNetworkOrCorsError(error)) {
     throw new AiServiceError(connectErrorMessage(baseUrl), 'cors')
@@ -504,7 +507,7 @@ export async function generateVariantQuestions(
     throw new AiServiceError('还没有填写 API Key。请先到设置页填写。', 'missing_key')
   }
 
-  const session = wrapAbort(signal, RECOGNIZE_TIMEOUT_MS)
+  const session = wrapAbort(signal, TEXT_TASK_TIMEOUT_MS)
   const useJsonMode = modelSupportsJsonObject(current.model)
   const useJsonSchema = modelSupportsJsonSchema(current.model)
 
@@ -617,7 +620,7 @@ export async function recheckQuestion(
     throw new AiServiceError('还没有填写 API Key。请先到设置页填写。', 'missing_key')
   }
 
-  const session = wrapAbort(signal, RECOGNIZE_TIMEOUT_MS)
+  const session = wrapAbort(signal, TEXT_TASK_TIMEOUT_MS)
   const useJsonMode = modelSupportsJsonObject(current.model)
   const useJsonSchema = modelSupportsJsonSchema(current.model)
   const prompts = tutorPrompts(subject)

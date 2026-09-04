@@ -44,6 +44,8 @@ export default defineConfig({
         target: 'https://api.openai.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/openai-proxy/, ''),
+        timeout: 180_000,
+        proxyTimeout: 180_000,
       },
     },
   },

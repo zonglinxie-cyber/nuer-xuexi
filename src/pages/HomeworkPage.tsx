@@ -77,6 +77,7 @@ export default function HomeworkPage() {
   const [imageDataUrl, setImageDataUrl] = useState('')
   const [viewTab, setViewTab] = useState<'editor' | 'explanation'>('editor')
   const [showImageModal, setShowImageModal] = useState(false)
+  const [elapsedSec, setElapsedSec] = useState(0)
   const [notice, setNotice] = useState<AppNotice | null>(() =>
     hasApiKey(loadSettings())
       ? null
@@ -94,7 +95,7 @@ export default function HomeworkPage() {
       return
     }
     setRechecking(true)
-    setNotice({ type: 'info', message: '正在根据修改后的题目与作答重新解析，请稍候…' })
+    setNotice({ type: 'info', message: '正在根据修改后的题目与作答重新解析。题目较难时可能需要一分钟左右。' })
     try {
       const updatedResult = await recheckQuestion(
         currentDraft.result.recognized_text,
@@ -160,6 +161,19 @@ export default function HomeworkPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!loading && !rechecking) {
+      setElapsedSec(0)
+      return
+    }
+    const startedAt = Date.now()
+    setElapsedSec(0)
+    const timer = window.setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - startedAt) / 1000))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [loading, rechecking])
+
   function confirmReplace(): boolean {
     if (!dirty || drafts.every((d) => d.parentConfirmed)) return true
     return window.confirm('当前识别结果还没有保存。确定要放弃并换一张图片吗？')
@@ -210,7 +224,10 @@ export default function HomeworkPage() {
     const controller = new AbortController()
     abortRef.current = controller
     setLoading(true)
-    setNotice({ type: 'info', message: '正在智能识别整页题目，请稍候…' })
+    setNotice({
+      type: 'info',
+      message: '正在识别整页题目并逐题批改。题目较多或较难时，AI 需要思考一两分钟，请先不要关掉页面。',
+    })
 
     try {
       const multi = await recognizeQuestions(imageDataUrl, subject, undefined, controller.signal)
@@ -439,7 +456,7 @@ export default function HomeworkPage() {
               disabled={loading}
               onClick={() => void handleRecognize()}
             >
-              {loading ? '🔍 正在智能批改中…' : `🚀 开始批改${SUBJECT_LABELS[subject]}作业`}
+              {loading ? `🔍 正在智能批改中… ${elapsedSec}秒` : `🚀 开始批改${SUBJECT_LABELS[subject]}作业`}
             </button>
             {loading && (
               <button
