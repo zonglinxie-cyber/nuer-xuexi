@@ -6,6 +6,7 @@ import {
   loadRecords,
   localDateKey,
   parseBackup,
+  resetStorageCache,
   sanitizeRecord,
   sanitizeWrongQuestion,
 } from './storageService'
@@ -41,6 +42,7 @@ beforeEach(() => {
 
 afterEach(() => {
   localStorage.clear()
+  resetStorageCache()
 })
 
 describe('isQuotaExceeded', () => {
@@ -69,6 +71,7 @@ describe('sanitizeRecord', () => {
     expect(record.questionType).toBe('其他')
     expect(record.knowledgePoints.length).toBeGreaterThan(0)
     expect(record.subject).toBe('math')
+    expect(record.imageDataUrl).toBe('')
   })
 
   it('keeps chinese subject and question type from new backups', () => {
@@ -106,7 +109,7 @@ describe('parseBackup / importBackup', () => {
   it('imports sanitized data and reports counts', async () => {
     const payload = {
       records: [{ id: 'a', questionText: '1', imageDataUrl: 'data:image/png;base64,xx' }],
-      wrongQuestions: [{ id: 'b', correctedText: '2' }],
+      wrongQuestions: [{ id: 'b', correctedText: '2', imageDataUrl: 'data:image/png;base64,yy' }],
     }
     const summary = getImportSummary(payload)
     expect(summary.incomingRecords).toBe(1)
@@ -116,7 +119,9 @@ describe('parseBackup / importBackup', () => {
     const imported = await importBackup(payload)
     expect(imported.records[0]?.id).toBe('a')
     expect(imported.records[0]?.subject).toBe('math')
+    expect(imported.records[0]?.imageDataUrl).toBe('')
     expect(imported.wrongQuestions[0]?.subject).toBe('math')
+    expect(imported.wrongQuestions[0]?.imageDataUrl).toBe('data:image/png;base64,yy')
     expect(loadRecords()).toHaveLength(1)
   })
 })

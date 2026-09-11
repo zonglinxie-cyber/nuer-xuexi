@@ -28,7 +28,7 @@ export default function Layout() {
             支持整页拍照 · A4 错题卷打印
           </p>
         </div>
-        <nav className="mx-auto hidden max-w-5xl gap-2 px-4 pb-3 sm:flex">
+        <nav aria-label="主导航" className="mx-auto hidden max-w-5xl gap-2 px-4 pb-3 sm:flex">
           {links.map((link) => (
             <NavLink
               key={link.to}
@@ -52,7 +52,10 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#d9d2c3] bg-[#fbfaf5]/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] sm:hidden shadow-lg">
+      <nav
+        aria-label="底部导航"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-[#d9d2c3] bg-[#fbfaf5]/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] sm:hidden shadow-lg"
+      >
         <div className="grid grid-cols-5">
           {links.map((link) => (
             <NavLink

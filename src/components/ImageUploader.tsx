@@ -49,6 +49,7 @@ export default function ImageUploader({
           type="button"
           disabled={disabled}
           onClick={() => cameraRef.current?.click()}
+          aria-label="打开相机拍摄作业"
         >
           📷 手机拍照
         </button>
@@ -57,6 +58,7 @@ export default function ImageUploader({
           type="button"
           disabled={disabled}
           onClick={() => fileRef.current?.click()}
+          aria-label="从相册选择作业图片"
         >
           🖼️ 相册上传
         </button>

@@ -45,7 +45,7 @@ export default function WrongDetailPage() {
     )
   }
 
-  function handleStatus(status: ReviewStatus) {
+  async function handleStatus(status: ReviewStatus) {
     if (!item) return
     const next = {
       ...item,
@@ -53,7 +53,7 @@ export default function WrongDetailPage() {
       lastReviewedAt: new Date().toISOString(),
     }
     try {
-      upsertWrongQuestion(next)
+      await upsertWrongQuestion(next)
       setItem(next)
       setNotice({ type: 'success', message: `状态已更新为“${status}”。` })
       if (status === '已掌握') {
@@ -89,13 +89,13 @@ export default function WrongDetailPage() {
     if (ok) setSpeaking(true)
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!item) return
     if (!window.confirm('确定从错题本删除这道题吗？')) {
       return
     }
     try {
-      deleteWrongQuestion(item.id)
+      await deleteWrongQuestion(item.id)
       navigate('/wrong-book')
     } catch (error) {
       setNotice({

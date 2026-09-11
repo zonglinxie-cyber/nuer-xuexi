@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useBlocker, useSearchParams } from 'react-router-dom'
 import ExplanationPanel from '../components/ExplanationPanel'
 import ImageUploader from '../components/ImageUploader'
 import NoticeBanner from '../components/NoticeBanner'
 import PrivacyNotice from '../components/PrivacyNotice'
 import ResultEditor from '../components/ResultEditor'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { defaultKnowledgeName, defaultTextbookUnit, parseSubjectId, SUBJECT_IDS, SUBJECT_LABELS } from '../data/subjects'
 import { AiServiceError, recognizeQuestions, recheckQuestion } from '../services/aiService'
 import { hasApiKey, loadLastSubject, loadSettings, saveLastSubject } from '../services/settingsService'
@@ -61,7 +62,7 @@ function toRecord(draft: DraftQuestion, parentConfirmed: boolean, savedAsWrong: 
     judgement: draft.result.is_correct,
     savedAsWrong,
     parentConfirmed,
-    imageDataUrl: draft.imageDataUrl,
+    imageDataUrl: '',
   }
 }
 
@@ -94,6 +95,9 @@ export default function HomeworkPage() {
       setNotice({ type: 'warning', message: '还没有填写 API Key。请先到设置页填写后再重新批改。' })
       return
     }
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
     setRechecking(true)
     setNotice({ type: 'info', message: '正在根据修改后的题目与作答重新解析。题目较难时可能需要一分钟左右。' })
     try {
@@ -101,6 +105,8 @@ export default function HomeworkPage() {
         currentDraft.result.recognized_text,
         currentDraft.result.student_answer,
         currentDraft.subject,
+        undefined,
+        controller.signal,
       )
       updateActiveResult(updatedResult)
       setNotice({
@@ -109,10 +115,11 @@ export default function HomeworkPage() {
       })
     } catch (error) {
       setNotice({
-        type: 'error',
+        type: error instanceof AiServiceError && error.code === 'cancelled' ? 'info' : 'error',
         message: error instanceof Error ? error.message : '重新解析失败，请检查网络或 API Key。',
       })
     } finally {
+      if (abortRef.current === controller) abortRef.current = null
       setRechecking(false)
     }
   }
@@ -129,13 +136,26 @@ export default function HomeworkPage() {
   const currentDraft = drafts[activeIndex] || drafts[0]
   const dirty = Boolean(imageDataUrl || hasResult)
   const hasUnsaved = hasResult && drafts.some((draft) => !draft.parentConfirmed)
-  const shouldBlock = hasUnsaved || loading
+  const shouldBlock = hasUnsaved || loading || rechecking
   const blocker = useBlocker(shouldBlock)
+
+  useEffect(() => {
+    if (shouldBlock) {
+      document.body.dataset.gradingBusy = '1'
+    } else {
+      delete document.body.dataset.gradingBusy
+    }
+    return () => {
+      delete document.body.dataset.gradingBusy
+    }
+  }, [shouldBlock])
 
   useEffect(() => {
     if (blocker.state !== 'blocked') return
     const ok = window.confirm(
-      loading ? '正在识别，离开会取消这次识别。确定要离开吗？' : '当前识别结果还没有保存。确定要离开吗？',
+      loading || rechecking
+        ? '正在识别或重新批改，离开会取消这次请求。确定要离开吗？'
+        : '当前识别结果还没有保存。确定要离开吗？',
     )
     if (ok) {
       abortRef.current?.abort()
@@ -143,7 +163,7 @@ export default function HomeworkPage() {
     } else {
       blocker.reset()
     }
-  }, [blocker, loading])
+  }, [blocker, loading, rechecking])
 
   useEffect(() => {
     function onBeforeUnload(event: BeforeUnloadEvent) {
@@ -194,6 +214,9 @@ export default function HomeworkPage() {
       return next
     })
   }
+
+  const closeImageModal = useCallback(() => setShowImageModal(false), [])
+  useEscapeKey(closeImageModal, showImageModal)
 
   function handleCancelRecognize() {
     abortRef.current?.abort()
@@ -269,7 +292,7 @@ export default function HomeworkPage() {
     }
   }
 
-  function handleSaveSingle(saveToWrong = false) {
+  async function handleSaveSingle(saveToWrong = false) {
     if (!hasResult) return
     if (saveToWrong) {
       const shouldSave =
@@ -295,7 +318,7 @@ export default function HomeworkPage() {
     const nextDraft = { ...currentDraft, parentConfirmed: true, savedAsWrong: saveToWrong }
     try {
       if (saveToWrong) {
-        upsertWrongQuestion({
+        await upsertWrongQuestion({
           id: nextDraft.id,
           subject: nextDraft.subject,
           imageDataUrl: nextDraft.imageDataUrl,
@@ -317,7 +340,7 @@ export default function HomeworkPage() {
           sourceRecordId: nextDraft.id,
         })
       }
-      upsertRecord(toRecord(nextDraft, true, saveToWrong))
+      await upsertRecord(toRecord(nextDraft, true, saveToWrong))
       setDrafts((prev) => {
         const copy = [...prev]
         copy[activeIndex] = nextDraft
@@ -337,62 +360,75 @@ export default function HomeworkPage() {
     }
   }
 
-  function handleBatchSave() {
+  async function handleBatchSave() {
     let savedWrongCount = 0
     let savedRecordCount = 0
     let skippedCauseCount = 0
+    const updated: DraftQuestion[] = []
 
-    const updated = drafts.map((draft) => {
-      const isWrong =
-        draft.result.is_correct === '错误' ||
-        draft.result.is_correct === '部分正确' ||
-        draft.needReview
-      const needsCause =
-        draft.result.is_correct === '错误' || draft.result.is_correct === '部分正确'
-      const canArchiveWrong = isWrong && (!needsCause || Boolean(draft.errorCause))
-      const confirmed = { ...draft, parentConfirmed: true, savedAsWrong: canArchiveWrong }
+    try {
+      for (const draft of drafts) {
+        const isWrong =
+          draft.result.is_correct === '错误' ||
+          draft.result.is_correct === '部分正确' ||
+          draft.needReview
+        const needsCause =
+          draft.result.is_correct === '错误' || draft.result.is_correct === '部分正确'
+        const canArchiveWrong = isWrong && (!needsCause || Boolean(draft.errorCause))
+        const confirmed = { ...draft, parentConfirmed: true, savedAsWrong: canArchiveWrong }
 
-      if (isWrong && !canArchiveWrong) {
-        skippedCauseCount += 1
+        if (isWrong && !canArchiveWrong) {
+          skippedCauseCount += 1
+        }
+
+        if (canArchiveWrong) {
+          await upsertWrongQuestion({
+            id: confirmed.id,
+            subject: confirmed.subject,
+            imageDataUrl: confirmed.imageDataUrl,
+            originalText: confirmed.originalText || confirmed.result.recognized_text,
+            correctedText: confirmed.result.recognized_text,
+            studentAnswer: confirmed.result.student_answer,
+            correctAnswer: confirmed.result.ai_answer,
+            explanation: confirmed.result.explanation,
+            stepByStep: confirmed.result.step_by_step,
+            knowledgePoint: confirmed.result.knowledge_point,
+            knowledgePoints: confirmed.result.knowledge_points,
+            textbookUnit: confirmed.result.textbook_unit,
+            errorCause: confirmed.errorCause,
+            errorCauseNote: confirmed.errorCauseNote,
+            savedAt: new Date().toISOString(),
+            reviewStatus: '未复习',
+            lastReviewedAt: '',
+            notes: confirmed.notes,
+            sourceRecordId: confirmed.id,
+          })
+          savedWrongCount += 1
+        }
+
+        await upsertRecord(toRecord(confirmed, true, canArchiveWrong))
+        savedRecordCount += 1
+        updated.push(confirmed)
       }
 
-      if (canArchiveWrong) {
-        upsertWrongQuestion({
-          id: confirmed.id,
-          subject: confirmed.subject,
-          imageDataUrl: confirmed.imageDataUrl,
-          originalText: confirmed.originalText || confirmed.result.recognized_text,
-          correctedText: confirmed.result.recognized_text,
-          studentAnswer: confirmed.result.student_answer,
-          correctAnswer: confirmed.result.ai_answer,
-          explanation: confirmed.result.explanation,
-          stepByStep: confirmed.result.step_by_step,
-          knowledgePoint: confirmed.result.knowledge_point,
-          knowledgePoints: confirmed.result.knowledge_points,
-          textbookUnit: confirmed.result.textbook_unit,
-          errorCause: confirmed.errorCause,
-          errorCauseNote: confirmed.errorCauseNote,
-          savedAt: new Date().toISOString(),
-          reviewStatus: '未复习',
-          lastReviewedAt: '',
-          notes: confirmed.notes,
-          sourceRecordId: confirmed.id,
-        })
-        savedWrongCount += 1
+      setDrafts(updated)
+      const extra =
+        skippedCauseCount > 0 ? ` 另有 ${skippedCauseCount} 道错题未选错因，已写入记录。` : ''
+      setNotice({
+        type: skippedCauseCount > 0 ? 'warning' : 'success',
+        message: `🎉 已保存 ${savedRecordCount} 条记录，其中 ${savedWrongCount} 道错题已归档。${extra}`,
+      })
+    } catch (error) {
+      if (updated.length > 0) {
+        setDrafts((prev) =>
+          prev.map((draft) => updated.find((item) => item.id === draft.id) || draft),
+        )
       }
-
-      upsertRecord(toRecord(confirmed, true, canArchiveWrong))
-      savedRecordCount += 1
-      return confirmed
-    })
-
-    setDrafts(updated)
-    const extra =
-      skippedCauseCount > 0 ? ` 另有 ${skippedCauseCount} 道错题未选错因，已写入记录。` : ''
-    setNotice({
-      type: skippedCauseCount > 0 ? 'warning' : 'success',
-      message: `🎉 已保存 ${savedRecordCount} 条记录，其中 ${savedWrongCount} 道错题已归档。${extra}`,
-    })
+      setNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : '批量保存失败，请重试未保存的题目。',
+      })
+    }
   }
 
   const statusText = useMemo(() => {
@@ -422,6 +458,7 @@ export default function HomeworkPage() {
                   type="button"
                   disabled={loading}
                   onClick={() => changeSubject(id)}
+                  aria-pressed={subject === id}
                   className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
                     subject === id
                       ? 'bg-[#2f5d50] text-white shadow-xs'
@@ -559,13 +596,17 @@ export default function HomeworkPage() {
       {showImageModal && imageDataUrl && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3"
-          onClick={() => setShowImageModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="作业原图"
+          onClick={closeImageModal}
         >
           <div className="relative max-h-[90vh] max-w-lg rounded-2xl bg-white p-2" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
+              aria-label="关闭原图"
               className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white text-xs"
-              onClick={() => setShowImageModal(false)}
+              onClick={closeImageModal}
             >
               ✕
             </button>
@@ -667,6 +708,7 @@ export default function HomeworkPage() {
                 onMetaChange={updateActiveMeta}
                 subject={currentDraft.subject}
                 onRecheck={handleRecheck}
+                onCancelRecheck={handleCancelRecognize}
                 rechecking={rechecking}
               />
             ) : (
@@ -679,19 +721,23 @@ export default function HomeworkPage() {
           </section>
 
           {/* 手机端常驻吸底操作栏（Sticky Action Bar） */}
-          <div className="fixed inset-x-0 bottom-12 sm:bottom-0 z-20 bg-white/95 backdrop-blur-md border-t border-[#ece6d8] px-3 py-2 shadow-lg">
+          <div
+            className="fixed inset-x-0 bottom-12 sm:bottom-0 z-20 bg-white/95 backdrop-blur-md border-t border-[#ece6d8] px-3 py-2 shadow-lg"
+            role="toolbar"
+            aria-label="保存作业"
+          >
             <div className="mx-auto flex max-w-5xl items-center justify-between gap-2">
               <button
                 className="flex-1 rounded-xl bg-[#2f5d50] py-2.5 px-3 text-xs sm:text-sm font-bold text-white shadow-xs hover:bg-[#254b40] transition-colors"
                 type="button"
-                onClick={() => handleSaveSingle(false)}
+                onClick={() => void handleSaveSingle(false)}
               >
                 ✓ 存记录
               </button>
               <button
                 className="flex-1 rounded-xl border border-[#9a6b4a] bg-[#fbfaf5] py-2.5 px-3 text-xs sm:text-sm font-bold text-[#9a6b4a] hover:bg-[#f5ede1] transition-colors"
                 type="button"
-                onClick={() => handleSaveSingle(true)}
+                onClick={() => void handleSaveSingle(true)}
               >
                 📕 入错题本
               </button>
@@ -699,7 +745,7 @@ export default function HomeworkPage() {
                 <button
                   className="rounded-xl bg-linear-to-r from-[#d97706] to-[#b45309] py-2.5 px-3 text-xs sm:text-sm font-bold text-white shadow-xs hover:opacity-95 transition-opacity shrink-0"
                   type="button"
-                  onClick={handleBatchSave}
+                  onClick={() => void handleBatchSave()}
                 >
                   ⚡ 全部归档
                 </button>

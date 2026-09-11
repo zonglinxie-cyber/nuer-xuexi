@@ -3,6 +3,7 @@ import {
   extractJson,
   isLikelyNetworkOrCorsError,
   modelSupportsJsonObject,
+  modelSupportsJsonSchema,
   normalizeRecognition,
 } from './aiService'
 
@@ -84,6 +85,15 @@ describe('modelSupportsJsonObject', () => {
   it('detects common OpenAI vision models', () => {
     expect(modelSupportsJsonObject('gpt-4o-mini')).toBe(true)
     expect(modelSupportsJsonObject('claude-3-haiku')).toBe(false)
+  })
+})
+
+describe('modelSupportsJsonSchema', () => {
+  it('covers current structured-output capable OpenAI models', () => {
+    expect(modelSupportsJsonSchema('gpt-4o')).toBe(true)
+    expect(modelSupportsJsonSchema('gpt-4.1')).toBe(true)
+    expect(modelSupportsJsonSchema('gpt-5')).toBe(true)
+    expect(modelSupportsJsonSchema('deepseek-v4-flash-vision-exp')).toBe(false)
   })
 })
 

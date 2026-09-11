@@ -22,6 +22,7 @@ import {
   getAllFromStore,
   getRewardStatsFromDB,
   getStorageStatsFromDB,
+  isIndexedDbAvailable,
   putToStore,
   saveRewardStatsToDB,
   STORES,
@@ -117,7 +118,8 @@ export function sanitizeRecord(raw: unknown): StudyRecord {
     judgement: pickEnum(item.judgement, JUDGEMENTS, '无法判断'),
     savedAsWrong: Boolean(item.savedAsWrong),
     parentConfirmed: Boolean(item.parentConfirmed),
-    imageDataUrl: asString(item.imageDataUrl),
+    // 学习记录不存原图：整页作业图只留在错题本，避免 IndexedDB 膨胀、列表变慢
+    imageDataUrl: '',
   }
 }
 
@@ -158,6 +160,9 @@ async function runInit(): Promise<void> {
     if (idbRecords.length > 0 || idbWrong.length > 0) {
       cachedRecords = idbRecords.map(sanitizeRecord)
       cachedWrongQuestions = idbWrong.map(sanitizeWrongQuestion)
+      if (idbRecords.some((item) => Boolean(item.imageDataUrl))) {
+        void bulkPutToStore(STORES.RECORDS, cachedRecords)
+      }
     } else {
       const localRecords = readJson<StudyRecord[]>(RECORDS_KEY, []).map(sanitizeRecord)
       const localWrong = readJson<WrongQuestion[]>(WRONG_KEY, []).map(sanitizeWrongQuestion)
@@ -201,26 +206,40 @@ if (typeof window !== 'undefined') {
   void initStorageAsync()
 }
 
+function persistRecordsLocal(records: StudyRecord[]): void {
+  cachedRecords = records
+  writeJson(
+    RECORDS_KEY,
+    records.map((item) => ({ ...item, imageDataUrl: '' })),
+  )
+}
+
+function persistWrongLocal(items: WrongQuestion[]): void {
+  cachedWrongQuestions = items
+  writeJson(
+    WRONG_KEY,
+    items.map((item) => ({ ...item, imageDataUrl: '' })),
+  )
+}
+
 export function loadRecords(): StudyRecord[] {
   if (cachedRecords) return cachedRecords
   const records = readJson<StudyRecord[]>(RECORDS_KEY, [])
-  cachedRecords = Array.isArray(records) ? records.map(sanitizeRecord) : []
-  return cachedRecords
+  const sanitized = Array.isArray(records) ? records.map(sanitizeRecord) : []
+  // 初始化未完成时不要写入缓存，避免用无图的 localStorage 覆盖 IndexedDB
+  if (!initPromise) cachedRecords = sanitized
+  return sanitized
 }
 
 export function saveRecords(records: StudyRecord[]): void {
   const sanitized = records.map(sanitizeRecord)
-  cachedRecords = sanitized
-  // 异步写入 IndexedDB
-  void bulkPutToStore(STORES.RECORDS, sanitized)
-  // 同步备份到 LocalStorage（剔除图片）
-  writeJson(
-    RECORDS_KEY,
-    sanitized.map((item) => ({ ...item, imageDataUrl: '' })),
-  )
+  persistRecordsLocal(sanitized)
+  void bulkPutToStore(STORES.RECORDS, sanitized).catch((err) => {
+    console.warn('[Storage] saveRecords IndexedDB write failed', err)
+  })
 }
 
-export function upsertRecord(record: StudyRecord): StudyRecord[] {
+export async function upsertRecord(record: StudyRecord): Promise<StudyRecord[]> {
   const records = loadRecords().slice()
   const next = sanitizeRecord(record)
   const index = records.findIndex((item) => item.id === next.id)
@@ -229,36 +248,35 @@ export function upsertRecord(record: StudyRecord): StudyRecord[] {
   } else {
     records.unshift(next)
   }
-  saveRecords(records)
-  void putToStore(STORES.RECORDS, next)
+  await putToStore(STORES.RECORDS, next)
+  persistRecordsLocal(records)
   return records
 }
 
-export function deleteRecord(id: string): StudyRecord[] {
+export async function deleteRecord(id: string): Promise<StudyRecord[]> {
   const records = loadRecords().filter((item) => item.id !== id)
-  saveRecords(records)
-  void deleteFromStore(STORES.RECORDS, id)
+  await deleteFromStore(STORES.RECORDS, id)
+  persistRecordsLocal(records)
   return records
 }
 
 export function loadWrongQuestions(): WrongQuestion[] {
   if (cachedWrongQuestions) return cachedWrongQuestions
   const items = readJson<WrongQuestion[]>(WRONG_KEY, [])
-  cachedWrongQuestions = Array.isArray(items) ? items.map(sanitizeWrongQuestion) : []
-  return cachedWrongQuestions
+  const sanitized = Array.isArray(items) ? items.map(sanitizeWrongQuestion) : []
+  if (!initPromise) cachedWrongQuestions = sanitized
+  return sanitized
 }
 
 export function saveWrongQuestions(items: WrongQuestion[]): void {
   const sanitized = items.map(sanitizeWrongQuestion)
-  cachedWrongQuestions = sanitized
-  void bulkPutToStore(STORES.WRONG, sanitized)
-  writeJson(
-    WRONG_KEY,
-    sanitized.map((item) => ({ ...item, imageDataUrl: '' })),
-  )
+  persistWrongLocal(sanitized)
+  void bulkPutToStore(STORES.WRONG, sanitized).catch((err) => {
+    console.warn('[Storage] saveWrongQuestions IndexedDB write failed', err)
+  })
 }
 
-export function upsertWrongQuestion(item: WrongQuestion): WrongQuestion[] {
+export async function upsertWrongQuestion(item: WrongQuestion): Promise<WrongQuestion[]> {
   const items = loadWrongQuestions().slice()
   const next = sanitizeWrongQuestion(item)
   const index = items.findIndex((current) => current.id === next.id)
@@ -268,8 +286,8 @@ export function upsertWrongQuestion(item: WrongQuestion): WrongQuestion[] {
   } else {
     items.unshift(next)
   }
-  saveWrongQuestions(items)
-  void putToStore(STORES.WRONG, next)
+  await putToStore(STORES.WRONG, next)
+  persistWrongLocal(items)
 
   if (next.reviewStatus === '已掌握' && previousStatus !== '已掌握') {
     awardStars(2, '攻克错题')
@@ -278,12 +296,12 @@ export function upsertWrongQuestion(item: WrongQuestion): WrongQuestion[] {
   return items
 }
 
-export function deleteWrongQuestion(id: string): WrongQuestion[] {
+export async function deleteWrongQuestion(id: string): Promise<WrongQuestion[]> {
   const items = loadWrongQuestions()
   const removed = items.find((item) => item.id === id)
   const next = items.filter((item) => item.id !== id)
-  saveWrongQuestions(next)
-  void deleteFromStore(STORES.WRONG, id)
+  await deleteFromStore(STORES.WRONG, id)
+  persistWrongLocal(next)
 
   if (removed) {
     const records = loadRecords()
@@ -295,9 +313,23 @@ export function deleteWrongQuestion(id: string): WrongQuestion[] {
       }
       return record
     })
-    if (changed) saveRecords(updated)
+    if (changed) {
+      const touched = updated.filter(
+        (record) => record.id === removed.id || record.id === removed.sourceRecordId,
+      )
+      await Promise.all(touched.map((record) => putToStore(STORES.RECORDS, record)))
+      persistRecordsLocal(updated)
+    }
   }
   return next
+}
+
+/** 测试用：清空内存缓存，避免用例互相污染。 */
+export function resetStorageCache(): void {
+  cachedRecords = null
+  cachedWrongQuestions = null
+  cachedRewardStats = null
+  initPromise = null
 }
 
 // 奖励与打卡统计系统
@@ -319,7 +351,9 @@ export function loadRewardStats(): UserRewardStats {
 export function saveRewardStats(stats: UserRewardStats): void {
   cachedRewardStats = stats
   writeJson(REWARDS_KEY, stats)
-  void saveRewardStatsToDB(stats)
+  void saveRewardStatsToDB(stats).catch((err) => {
+    console.warn('[Storage] saveRewardStats IndexedDB write failed', err)
+  })
 }
 
 export function recordDailyActivity(): UserRewardStats {
@@ -448,25 +482,39 @@ export async function importBackup(payload: unknown): Promise<{
   wrongQuestions: WrongQuestion[]
 }> {
   const parsed = parseBackup(payload)
-  cachedWrongQuestions = parsed.wrongQuestions.map(sanitizeWrongQuestion)
-  cachedRecords = parsed.records.map(sanitizeRecord)
-  writeJson(
-    WRONG_KEY,
-    cachedWrongQuestions.map((item) => ({ ...item, imageDataUrl: '' })),
-  )
-  writeJson(
-    RECORDS_KEY,
-    cachedRecords.map((item) => ({ ...item, imageDataUrl: '' })),
-  )
+  const nextRecords = parsed.records.map(sanitizeRecord)
+  const nextWrong = parsed.wrongQuestions.map(sanitizeWrongQuestion)
+  const previousRecords = loadRecords().slice()
+  const previousWrong = loadWrongQuestions().slice()
+
+  persistRecordsLocal(nextRecords)
+  persistWrongLocal(nextWrong)
+
   try {
-    await clearStore(STORES.WRONG)
-    await clearStore(STORES.RECORDS)
-    await bulkPutToStore(STORES.WRONG, cachedWrongQuestions)
-    await bulkPutToStore(STORES.RECORDS, cachedRecords)
+    if (isIndexedDbAvailable()) {
+      await clearStore(STORES.WRONG)
+      await clearStore(STORES.RECORDS)
+      await bulkPutToStore(STORES.WRONG, nextWrong)
+      await bulkPutToStore(STORES.RECORDS, nextRecords)
+    }
   } catch (err) {
-    console.warn('[Storage] importBackup IndexedDB write failed', err)
+    console.warn('[Storage] importBackup IndexedDB write failed, rolling back', err)
+    persistRecordsLocal(previousRecords)
+    persistWrongLocal(previousWrong)
+    try {
+      if (isIndexedDbAvailable()) {
+        await clearStore(STORES.WRONG)
+        await clearStore(STORES.RECORDS)
+        await bulkPutToStore(STORES.WRONG, previousWrong)
+        await bulkPutToStore(STORES.RECORDS, previousRecords)
+      }
+    } catch (rollbackErr) {
+      console.warn('[Storage] importBackup rollback failed', rollbackErr)
+    }
+    throw new Error('导入失败，已尽量恢复导入前的数据。请先导出备份后再试。')
   }
-  return { records: cachedRecords, wrongQuestions: cachedWrongQuestions }
+
+  return { records: nextRecords, wrongQuestions: nextWrong }
 }
 
 export function downloadJson(filename: string, data: unknown): void {

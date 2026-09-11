@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { parseSubjectId, printSheetTitle } from '../data/subjects'
 import type { WrongQuestion } from '../types'
 import MathView from './MathView'
@@ -16,6 +17,8 @@ export default function PrintSheetModal({ questions, onClose }: PrintSheetModalP
   })
   const [includeImage, setIncludeImage] = useState(false)
   const [showAnswerKey, setShowAnswerKey] = useState(false)
+  const handleClose = useCallback(() => onClose(), [onClose])
+  useEscapeKey(handleClose)
 
   const selectedQuestions = useMemo(() => {
     return questions.filter((q) => selectedIds.includes(q.id))
@@ -38,7 +41,12 @@ export default function PrintSheetModal({ questions, onClose }: PrintSheetModalP
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 print:p-0 print:static print:bg-white">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 print:p-0 print:static print:bg-white"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="print-sheet-title"
+    >
       {/* 打印专用 CSS 样式 */}
       <style>{`
         @media print {
@@ -72,7 +80,9 @@ export default function PrintSheetModal({ questions, onClose }: PrintSheetModalP
         {/* 顶部控制栏 (打印时隐藏) */}
         <div className="no-print flex items-center justify-between border-b border-[#ece6d8] bg-[#fbfaf5] px-3.5 py-2.5 sm:px-6 sm:py-4">
           <div>
-            <h3 className="text-xs sm:text-lg font-bold text-[#243026]">🖨️ 生成 A4 错题重做练习单</h3>
+            <h3 id="print-sheet-title" className="text-xs sm:text-lg font-bold text-[#243026]">
+              🖨️ 生成 A4 错题重做练习单
+            </h3>
             <p className="text-[11px] text-[#66756c] mt-0.5">
               已选 {selectedQuestions.length} / {questions.length} 题 · 导出空白练习单
             </p>
@@ -88,8 +98,9 @@ export default function PrintSheetModal({ questions, onClose }: PrintSheetModalP
             </button>
             <button
               type="button"
+              aria-label="关闭打印预览"
               className="text-[#66756c] hover:text-[#243026] text-base px-1"
-              onClick={onClose}
+              onClick={handleClose}
             >
               ✕
             </button>

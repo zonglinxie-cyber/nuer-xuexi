@@ -53,6 +53,7 @@ export default function ExplanationPanel({
         <div className="flex gap-1.5">
           <button
             type="button"
+            aria-pressed={mode === 'guide'}
             className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
               mode === 'guide'
                 ? 'bg-[#2f5d50] text-white shadow-xs'
@@ -64,6 +65,7 @@ export default function ExplanationPanel({
           </button>
           <button
             type="button"
+            aria-pressed={mode === 'answer'}
             className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
               mode === 'answer'
                 ? 'bg-[#2f5d50] text-white shadow-xs'

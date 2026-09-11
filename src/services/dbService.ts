@@ -11,8 +11,12 @@ export const STORES = {
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
-function isIndexedDbAvailable(): boolean {
-  return typeof window !== 'undefined' && Boolean(window.indexedDB)
+export function isIndexedDbAvailable(): boolean {
+  return typeof indexedDB !== 'undefined'
+}
+
+function resetDatabaseHandle(): void {
+  dbPromise = null
 }
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -23,7 +27,7 @@ function openDatabase(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise
 
   dbPromise = new Promise((resolve, reject) => {
-    const request = window.indexedDB.open(DB_NAME, DB_VERSION)
+    const request = indexedDB.open(DB_NAME, DB_VERSION)
 
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result
@@ -40,11 +44,19 @@ function openDatabase(): Promise<IDBDatabase> {
     }
 
     request.onsuccess = () => {
-      resolve(request.result)
+      const db = request.result
+      db.onclose = () => {
+        resetDatabaseHandle()
+      }
+      db.onversionchange = () => {
+        db.close()
+        resetDatabaseHandle()
+      }
+      resolve(db)
     }
 
     request.onerror = () => {
-      dbPromise = null
+      resetDatabaseHandle()
       reject(request.error || new Error('打开 IndexedDB 数据库失败'))
     }
   })
@@ -52,106 +64,76 @@ function openDatabase(): Promise<IDBDatabase> {
   return dbPromise
 }
 
+function runStoreRequest<T>(
+  storeName: string,
+  mode: IDBTransactionMode,
+  run: (store: IDBObjectStore) => IDBRequest<T> | void,
+): Promise<T | undefined> {
+  return openDatabase().then(
+    (db) =>
+      new Promise<T | undefined>((resolve, reject) => {
+        const tx = db.transaction(storeName, mode)
+        const store = tx.objectStore(storeName)
+        let requestError: DOMException | null = null
+        const request = run(store)
+        if (request) {
+          request.onerror = () => {
+            requestError = request.error
+          }
+        }
+        tx.oncomplete = () => resolve(request ? (request.result as T) : undefined)
+        tx.onerror = () => reject(tx.error || requestError || new Error('IndexedDB 事务失败'))
+        tx.onabort = () => reject(tx.error || requestError || new Error('IndexedDB 事务已中止'))
+      }),
+  )
+}
+
 export async function getAllFromStore<T>(storeName: string): Promise<T[]> {
+  if (!isIndexedDbAvailable()) return []
   try {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readonly')
-      const store = tx.objectStore(storeName)
-      const req = store.getAll()
-      req.onsuccess = () => resolve(req.result as T[])
-      req.onerror = () => reject(req.error)
-    })
+    const rows = await runStoreRequest<T[]>(storeName, 'readonly', (store) => store.getAll())
+    return Array.isArray(rows) ? rows : []
   } catch {
     return []
   }
 }
 
 export async function putToStore<T>(storeName: string, item: T): Promise<void> {
-  try {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readwrite')
-      const store = tx.objectStore(storeName)
-      const req = store.put(item)
-      req.onsuccess = () => resolve()
-      req.onerror = () => reject(req.error)
-    })
-  } catch (err) {
-    if (isIndexedDbAvailable()) {
-      console.error(`[IndexedDB] putToStore ${storeName} error:`, err)
-    }
-  }
+  if (!isIndexedDbAvailable()) return
+  await runStoreRequest(storeName, 'readwrite', (store) => store.put(item))
 }
 
 export async function bulkPutToStore<T>(storeName: string, items: T[]): Promise<void> {
-  if (!items.length) return
-  try {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readwrite')
-      const store = tx.objectStore(storeName)
-      items.forEach((item) => store.put(item))
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error)
-    })
-  } catch (err) {
-    if (isIndexedDbAvailable()) {
-      console.error(`[IndexedDB] bulkPutToStore ${storeName} error:`, err)
+  if (!items.length || !isIndexedDbAvailable()) return
+  await runStoreRequest(storeName, 'readwrite', (store) => {
+    for (const item of items) {
+      store.put(item)
     }
-  }
+  })
 }
 
 export async function deleteFromStore(storeName: string, id: string): Promise<void> {
-  try {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readwrite')
-      const store = tx.objectStore(storeName)
-      const req = store.delete(id)
-      req.onsuccess = () => resolve()
-      req.onerror = () => reject(req.error)
-    })
-  } catch (err) {
-    if (isIndexedDbAvailable()) {
-      console.error(`[IndexedDB] deleteFromStore ${storeName} error:`, err)
-    }
-  }
+  if (!isIndexedDbAvailable()) return
+  await runStoreRequest(storeName, 'readwrite', (store) => store.delete(id))
 }
 
 export async function clearStore(storeName: string): Promise<void> {
-  try {
-    const db = await openDatabase()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readwrite')
-      const store = tx.objectStore(storeName)
-      const req = store.clear()
-      req.onsuccess = () => resolve()
-      req.onerror = () => reject(req.error)
-    })
-  } catch (err) {
-    if (isIndexedDbAvailable()) {
-      console.error(`[IndexedDB] clearStore ${storeName} error:`, err)
-    }
-  }
+  if (!isIndexedDbAvailable()) return
+  await runStoreRequest(storeName, 'readwrite', (store) => store.clear())
 }
 
 export async function getRewardStatsFromDB(): Promise<UserRewardStats | null> {
+  if (!isIndexedDbAvailable()) return null
   try {
-    const db = await openDatabase()
-    return new Promise((resolve) => {
-      const tx = db.transaction(STORES.REWARDS, 'readonly')
-      const store = tx.objectStore(STORES.REWARDS)
-      const req = store.get('user_reward_stats')
-      req.onsuccess = () => {
-        if (req.result && typeof req.result === 'object' && 'stats' in req.result) {
-          resolve(req.result.stats as UserRewardStats)
-        } else {
-          resolve(null)
-        }
-      }
-      req.onerror = () => resolve(null)
-    })
+    const row = await runStoreRequest<{ key: string; stats?: UserRewardStats }>(
+      STORES.REWARDS,
+      'readonly',
+      (store) => store.get('user_reward_stats'),
+    )
+    if (row && typeof row === 'object' && row.stats) {
+      return row.stats
+    }
+    return null
   } catch {
     return null
   }
@@ -172,7 +154,7 @@ export async function getStorageStatsFromDB(): Promise<{
   const images = wrong.filter((item) => Boolean(item.imageDataUrl))
 
   let bytes = 0
-  if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
+  if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
     try {
       const estimate = await navigator.storage.estimate()
       if (estimate.usage) {
@@ -184,9 +166,7 @@ export async function getStorageStatsFromDB(): Promise<{
   }
 
   if (!bytes) {
-    const wrongStr = JSON.stringify(wrong)
-    const recStr = JSON.stringify(records)
-    bytes = new Blob([wrongStr + recStr]).size
+    bytes = new Blob([JSON.stringify(wrong) + JSON.stringify(records)]).size
   }
 
   return {
