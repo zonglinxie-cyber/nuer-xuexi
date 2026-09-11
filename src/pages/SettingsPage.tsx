@@ -40,12 +40,27 @@ export default function SettingsPage() {
 
   function handleSave(event: FormEvent) {
     event.preventDefault()
-    saveSettings(settings)
-    setNotice({ type: 'success', message: '设置已保存。API Key 仅保存在本机浏览器中。' })
+    try {
+      saveSettings(settings)
+      setNotice({ type: 'success', message: '设置已保存。API Key 仅保存在本机浏览器中。' })
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : '设置保存失败。',
+      })
+    }
   }
 
   async function handleTest() {
-    saveSettings(settings)
+    try {
+      saveSettings(settings)
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : '设置保存失败。',
+      })
+      return
+    }
     setTesting(true)
     try {
       await testAiConnection(settings)

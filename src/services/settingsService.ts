@@ -50,14 +50,18 @@ export function loadSettings(): AiSettings {
 }
 
 export function saveSettings(settings: AiSettings): void {
-  localStorage.setItem(
-    SETTINGS_KEY,
-    JSON.stringify({
-      apiKey: settings.apiKey.trim(),
-      model: settings.model.trim() || DEFAULT_SETTINGS.model,
-      baseUrl: settings.baseUrl.trim().replace(/\/$/, '') || DEFAULT_SETTINGS.baseUrl,
-    }),
-  )
+  try {
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({
+        apiKey: settings.apiKey.trim(),
+        model: settings.model.trim() || DEFAULT_SETTINGS.model,
+        baseUrl: settings.baseUrl.trim().replace(/\/$/, '') || DEFAULT_SETTINGS.baseUrl,
+      }),
+    )
+  } catch {
+    throw new Error('浏览器存不下设置。请清理本机空间后再保存。')
+  }
 }
 
 export function hasApiKey(settings = loadSettings()): boolean {

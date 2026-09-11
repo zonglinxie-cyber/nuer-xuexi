@@ -33,6 +33,7 @@ import type {
   VariantQuestion,
   WrongQuestion,
 } from '../types'
+import { createId } from '../utils/id'
 import { dataUrlToBase64 } from '../utils/image'
 import { hasApiKey, isOfficialOpenAiBase, isVolcengineBase, loadSettings, resolveApiBaseUrl } from './settingsService'
 
@@ -301,7 +302,7 @@ export function modelSupportsJsonObject(model: string): boolean {
 }
 
 export function modelSupportsJsonSchema(model: string): boolean {
-  return /gpt-4o|gpt-4\.5|o[1-4]/i.test(model)
+  return /gpt-4o|gpt-4\.1|gpt-4\.5|gpt-5|o[1-4]/i.test(model)
 }
 
 export function isLikelyNetworkOrCorsError(error: unknown): boolean {
@@ -338,7 +339,7 @@ function chatCompletionsUrl(baseUrl: string): string {
 function wrapAbort(external: AbortSignal | undefined, timeoutMs: number) {
   const controller = new AbortController()
   let timedOut = false
-  const timeout = window.setTimeout(() => {
+  const timeout = globalThis.setTimeout(() => {
     timedOut = true
     controller.abort()
   }, timeoutMs)
@@ -350,9 +351,88 @@ function wrapAbort(external: AbortSignal | undefined, timeoutMs: number) {
     wasTimedOut: () => timedOut,
     dispose() {
       external?.removeEventListener('abort', onAbort)
-      window.clearTimeout(timeout)
+      globalThis.clearTimeout(timeout)
     },
   }
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'))
+      return
+    }
+    const timer = globalThis.setTimeout(() => resolve(), ms)
+    const onAbort = () => {
+      globalThis.clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+function applyJsonMode(
+  body: Record<string, unknown>,
+  useJsonMode: boolean,
+  useJsonSchema: boolean,
+  schema: unknown,
+): void {
+  if (!useJsonMode) return
+  if (useJsonSchema) {
+    body.response_format = { type: 'json_schema', json_schema: schema }
+  } else {
+    body.response_format = { type: 'json_object' }
+  }
+}
+
+type ChatSession = { signal: AbortSignal }
+
+async function requestChat(
+  settings: AiSettings,
+  body: Record<string, unknown>,
+  session: ChatSession,
+): Promise<string> {
+  const url = chatCompletionsUrl(settings.baseUrl)
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${settings.apiKey.trim()}`,
+  }
+
+  const attempt = async (payload: Record<string, unknown>) => {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: session.signal,
+    })
+    const rawText = await response.text()
+    return { response, rawText }
+  }
+
+  let payload = body
+  let { response, rawText } = await attempt(payload)
+
+  if (
+    !response.ok &&
+    response.status === 400 &&
+    payload.response_format &&
+    /response_format|json_object|json_schema/i.test(rawText)
+  ) {
+    payload = { ...body }
+    delete payload.response_format
+    ;({ response, rawText } = await attempt(payload))
+  }
+
+  if (response.status === 429) {
+    await sleep(1600, session.signal)
+    ;({ response, rawText } = await attempt(payload))
+  }
+
+  if (!response.ok) {
+    throw friendlyHttpError(response.status, rawText)
+  }
+
+  return rawText
 }
 
 function mapFetchError(
@@ -411,66 +491,32 @@ export async function recognizeQuestions(
   const prompts = tutorPrompts(subject)
   const { mime, base64 } = dataUrlToBase64(imageDataUrl)
   const session = wrapAbort(signal, RECOGNIZE_TIMEOUT_MS)
-  const useJsonMode = modelSupportsJsonObject(current.model)
-  const useJsonSchema = modelSupportsJsonSchema(current.model)
-
-  const makeBody = (withJsonMode: boolean) => {
-    const body: Record<string, unknown> = {
-      model: current.model.trim(),
-      temperature: 0.2,
-      messages: [
-        { role: 'system', content: prompts.system },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompts.user },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${mime};base64,${base64}`,
-              },
+  const body: Record<string, unknown> = {
+    model: current.model.trim(),
+    temperature: 0.2,
+    messages: [
+      { role: 'system', content: prompts.system },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompts.user },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:${mime};base64,${base64}`,
             },
-          ],
-        },
-      ],
-    }
-    if (withJsonMode) {
-      if (useJsonSchema) {
-        body.response_format = { type: 'json_schema', json_schema: RECOGNITION_JSON_SCHEMA }
-      } else {
-        body.response_format = { type: 'json_object' }
-      }
-    }
-    return body
-  }
-
-  const post = (withJsonMode: boolean) =>
-    fetch(chatCompletionsUrl(current.baseUrl), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${current.apiKey.trim()}`,
+          },
+        ],
       },
-      body: JSON.stringify(makeBody(withJsonMode)),
-      signal: session.signal,
-    })
+    ],
+  }
+  applyJsonMode(body, modelSupportsJsonObject(current.model), modelSupportsJsonSchema(current.model), RECOGNITION_JSON_SCHEMA)
 
   try {
-    let response = await post(useJsonMode)
-    let rawText = await response.text()
-    if (!response.ok && useJsonMode && response.status === 400 && /response_format|json_object/i.test(rawText)) {
-      response = await post(false)
-      rawText = await response.text()
-    }
-    if (!response.ok) {
-      throw friendlyHttpError(response.status, rawText)
-    }
-
-    const text = await readContent(rawText)
+    const text = await readContent(await requestChat(current, body, session))
     if (!text.trim()) {
       throw new AiServiceError('AI 没有返回识别结果。请换一张更清晰的图片，或稍后重试。', 'empty')
     }
-
     return normalizeMultiRecognition(extractJson(text), subject)
   } catch (error) {
     mapFetchError(error, session, current.baseUrl)
@@ -508,9 +554,6 @@ export async function generateVariantQuestions(
   }
 
   const session = wrapAbort(signal, TEXT_TASK_TIMEOUT_MS)
-  const useJsonMode = modelSupportsJsonObject(current.model)
-  const useJsonSchema = modelSupportsJsonSchema(current.model)
-
   const subject = wrongQuestion.subject || 'math'
   const subjectLabel = subject === 'chinese' ? '语文' : subject === 'english' ? '英语' : '数学'
   const defaultCause = subject === 'chinese' ? '错别字' : subject === 'english' ? '单词拼错' : '计算错误'
@@ -520,7 +563,7 @@ export async function generateVariantQuestions(
 【孩子错因】：${wrongQuestion.errorCause || defaultCause} ${wrongQuestion.errorCauseNote ? `(${wrongQuestion.errorCauseNote})` : ''}
 【正确解法与参考答案】：${wrongQuestion.correctAnswer || ''}
 
-请按系统要求返回 JSON 格式，包含 3 道变式题。`
+请按系统要求返回 JSON 格式，包含 ${count} 道变式题。`
 
   const body: Record<string, unknown> = {
     model: current.model.trim(),
@@ -530,48 +573,39 @@ export async function generateVariantQuestions(
       { role: 'user', content: prompt },
     ],
   }
-  if (useJsonMode) {
-    if (useJsonSchema) {
-      body.response_format = { type: 'json_schema', json_schema: VARIANT_JSON_SCHEMA }
-    } else {
-      body.response_format = { type: 'json_object' }
-    }
-  }
+  applyJsonMode(body, modelSupportsJsonObject(current.model), modelSupportsJsonSchema(current.model), VARIANT_JSON_SCHEMA)
 
   try {
-    const response = await fetch(chatCompletionsUrl(current.baseUrl), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${current.apiKey.trim()}`,
-      },
-      body: JSON.stringify(body),
-      signal: session.signal,
-    })
-    const rawText = await response.text()
-    if (!response.ok) {
-      throw friendlyHttpError(response.status, rawText)
-    }
+    const text = await readContent(await requestChat(current, body, session))
+    const parsed = extractJson(text)
+    const data = parsed && typeof parsed === 'object' ? (parsed as { variants?: unknown[] }) : {}
+    const variantsRaw = Array.isArray(data.variants) ? data.variants : []
 
-    const text = await readContent(rawText)
-    const parsed = extractJson(text) as { variants?: unknown[] }
-    const variantsRaw = Array.isArray(parsed?.variants) ? parsed.variants : []
-
-    return variantsRaw.map((v: any, index: number): VariantQuestion => ({
-      id: `var_${Date.now()}_${index + 1}`,
-      subject,
-      originalQuestionId: wrongQuestion.id,
-      questionText: asString(v.question_text || v.questionText || `变式题 ${index + 1}`),
-      knowledgePoint: asString(v.knowledge_point || wrongQuestion.knowledgePoint),
-      hints: asStringArray(v.hints),
-      stepByStep: asStringArray(v.step_by_step || v.stepByStep),
-      answer: asString(v.answer),
-      explanation: asString(v.explanation),
-    }))
+    return variantsRaw.map((raw, index) => normalizeVariant(raw, index, subject, wrongQuestion))
   } catch (error) {
     mapFetchError(error, session, current.baseUrl)
   } finally {
     session.dispose()
+  }
+}
+
+function normalizeVariant(
+  raw: unknown,
+  index: number,
+  subject: SubjectId,
+  wrongQuestion: WrongQuestion,
+): VariantQuestion {
+  const data = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  return {
+    id: createId('var'),
+    subject,
+    originalQuestionId: wrongQuestion.id,
+    questionText: asString(data.question_text || data.questionText, `变式题 ${index + 1}`),
+    knowledgePoint: asString(data.knowledge_point || data.knowledgePoint, wrongQuestion.knowledgePoint),
+    hints: asStringArray(data.hints),
+    stepByStep: asStringArray(data.step_by_step || data.stepByStep),
+    answer: asString(data.answer),
+    explanation: asString(data.explanation),
   }
 }
 
@@ -583,24 +617,16 @@ export async function testAiConnection(settings?: AiSettings, signal?: AbortSign
 
   const session = wrapAbort(signal, TEST_TIMEOUT_MS)
   try {
-    const response = await fetch(chatCompletionsUrl(current.baseUrl), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${current.apiKey.trim()}`,
-      },
-      body: JSON.stringify({
+    await requestChat(
+      current,
+      {
         model: current.model.trim(),
         temperature: 0,
         max_tokens: 8,
         messages: [{ role: 'user', content: '只回复：ok' }],
-      }),
-      signal: session.signal,
-    })
-    const rawText = await response.text()
-    if (!response.ok) {
-      throw friendlyHttpError(response.status, rawText)
-    }
+      },
+      session,
+    )
   } catch (error) {
     mapFetchError(error, session, current.baseUrl)
   } finally {
@@ -621,8 +647,6 @@ export async function recheckQuestion(
   }
 
   const session = wrapAbort(signal, TEXT_TASK_TIMEOUT_MS)
-  const useJsonMode = modelSupportsJsonObject(current.model)
-  const useJsonSchema = modelSupportsJsonSchema(current.model)
   const prompts = tutorPrompts(subject)
 
   const subjectLabel = subject === 'chinese' ? '语文' : subject === 'english' ? '英语' : '数学'
@@ -645,43 +669,10 @@ export async function recheckQuestion(
       { role: 'user', content: prompt },
     ],
   }
-  if (useJsonMode) {
-    if (useJsonSchema) {
-      body.response_format = { type: 'json_schema', json_schema: RECOGNITION_JSON_SCHEMA }
-    } else {
-      body.response_format = { type: 'json_object' }
-    }
-  }
+  applyJsonMode(body, modelSupportsJsonObject(current.model), modelSupportsJsonSchema(current.model), RECOGNITION_JSON_SCHEMA)
 
   try {
-    let response = await fetch(chatCompletionsUrl(current.baseUrl), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${current.apiKey.trim()}`,
-      },
-      body: JSON.stringify(body),
-      signal: session.signal,
-    })
-    let rawText = await response.text()
-    if (!response.ok && useJsonMode && response.status === 400 && /response_format|json_object/i.test(rawText)) {
-      delete body.response_format
-      response = await fetch(chatCompletionsUrl(current.baseUrl), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${current.apiKey.trim()}`,
-        },
-        body: JSON.stringify(body),
-        signal: session.signal,
-      })
-      rawText = await response.text()
-    }
-    if (!response.ok) {
-      throw friendlyHttpError(response.status, rawText)
-    }
-
-    const text = await readContent(rawText)
+    const text = await readContent(await requestChat(current, body, session))
     const multi = normalizeMultiRecognition(extractJson(text), subject)
     const result = multi.questions[0] || normalizeRecognition({}, subject)
     // 确保保留家长校对的题目和作答

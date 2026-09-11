@@ -9,6 +9,8 @@ import './index.css'
 registerSW({
   immediate: true,
   onNeedRefresh() {
+    // 批改/未保存时不要强刷，避免整页作业结果丢失
+    if (document.body.dataset.gradingBusy === '1') return
     window.location.reload()
   },
 })

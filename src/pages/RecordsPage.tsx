@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import MathView from '../components/MathView'
 import { parseSubjectId, SUBJECT_IDS, SUBJECT_LABELS } from '../data/subjects'
@@ -8,13 +8,19 @@ import { daysAgo, formatDateTime, formatPercent } from '../utils/format'
 
 const DECIDED = new Set(['正确', '错误', '部分正确'])
 const COLORS = ['#e63946', '#f4a261', '#e9c46a', '#2a9d8f', '#264653', '#8b5cf6', '#d946ef', '#0ea5e9']
+const PAGE_SIZE = 24
 
 export default function RecordsPage() {
   const [subjectFilter, setSubjectFilter] = useState<SubjectId | '全部'>('全部')
   const [records, setRecords] = useState(() =>
     loadRecords().slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
   )
-  const allWrong = loadWrongQuestions().slice().sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const [allWrong] = useState(() => loadWrongQuestions().slice().sort((a, b) => b.savedAt.localeCompare(a.savedAt)))
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [subjectFilter])
   const visibleRecords = useMemo(
     () => records.filter((item) => (subjectFilter === '全部' ? true : parseSubjectId(item.subject) === subjectFilter)),
     [records, subjectFilter],
@@ -43,11 +49,17 @@ export default function RecordsPage() {
     .sort((a, b) => b[1] - a[1])
     .map(([name, value]) => ({ name, value }))
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!window.confirm('确定删除这条学习记录吗？')) return
-    deleteRecord(id)
-    setRecords(loadRecords().slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
+    try {
+      await deleteRecord(id)
+      setRecords(loadRecords().slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '删除失败，请重试。')
+    }
   }
+
+  const pagedRecords = visibleRecords.slice(0, visibleCount)
 
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -157,7 +169,7 @@ export default function RecordsPage() {
           <p className="text-xs text-[#66756c] py-4 text-center">还没有学习记录。请到拍照页开始批改。</p>
         ) : (
           <div className="space-y-2">
-            {visibleRecords.map((item) => (
+            {pagedRecords.map((item) => (
               <div
                 key={item.id}
                 className="rounded-xl border border-[#ece6d8] bg-[#fbfaf5] p-2.5 text-xs text-[#243026] transition-all hover:bg-white"
@@ -200,13 +212,23 @@ export default function RecordsPage() {
                   <button
                     className="text-[#9a6b4a] hover:underline"
                     type="button"
-                    onClick={() => handleDelete(item.id)}
+                    onClick={() => void handleDelete(item.id)}
+                    aria-label={`删除「${item.knowledgePoint}」这条学习记录`}
                   >
                     删除
                   </button>
                 </div>
               </div>
             ))}
+            {visibleCount < visibleRecords.length && (
+              <button
+                type="button"
+                className="w-full rounded-xl border border-[#d9d2c3] bg-white py-2 text-xs font-bold text-[#2f5d50]"
+                onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+              >
+                加载更多（还有 {visibleRecords.length - visibleCount} 条）
+              </button>
+            )}
           </div>
         )}
       </section>

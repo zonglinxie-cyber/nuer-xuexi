@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 export default function PrivacyNotice() {
   const [open, setOpen] = useState(false)
+  const close = useCallback(() => setOpen(false), [])
+  useEscapeKey(close, open)
 
   return (
     <div className="rounded-xl border border-[#e5ded0] bg-white/70 px-3 py-1.5 text-xs text-[#66756c] flex items-center justify-between">
@@ -17,9 +20,17 @@ export default function PrivacyNotice() {
         {open ? '收起' : '详情'}
       </button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="privacy-notice-title"
+          onClick={close}
+        >
           <div className="rounded-2xl bg-white p-5 max-w-sm text-xs leading-5 text-[#4a5850]" onClick={(e) => e.stopPropagation()}>
-            <h4 className="font-bold text-sm text-[#243026] mb-2">🔒 隐私与数据安全声明</h4>
+            <h4 id="privacy-notice-title" className="font-bold text-sm text-[#243026] mb-2">
+              🔒 隐私与数据安全声明
+            </h4>
             <p>1. 作业图片将发送给您配置的 AI 服务进行图文识别，请不要上传包含姓名、家庭住址、身份证等敏感信息的照片。</p>
             <p className="mt-2">2. 识别后的错题与做题记录只保存在当前手机/电脑浏览器的本地存储（IndexedDB）中，不会上传到任何未经授权的第三方服务器。</p>
             <button

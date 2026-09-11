@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { generateVariantQuestions } from '../services/aiService'
 import { upsertWrongQuestion } from '../services/storageService'
 import type { VariantQuestion, WrongQuestion } from '../types'
@@ -25,23 +26,38 @@ export default function VariantPracticeModal({
   const [speakingId, setSpeakingId] = useState<string | null>(null)
   const [showCelebration, setShowCelebration] = useState(false)
   const [alreadyMastered, setAlreadyMastered] = useState(wrongQuestion.reviewStatus === '已掌握')
+  const abortRef = useRef<AbortController | null>(null)
+
+  const handleClose = useCallback(() => {
+    abortRef.current?.abort()
+    stopSpeech()
+    onClose()
+  }, [onClose])
+
+  useEscapeKey(handleClose)
 
   useEffect(() => {
     void handleGenerate()
     return () => {
+      abortRef.current?.abort()
       stopSpeech()
     }
   }, [])
 
   async function handleGenerate() {
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
     setLoading(true)
     setError(null)
     try {
-      const list = await generateVariantQuestions(wrongQuestion, 3)
+      const list = await generateVariantQuestions(wrongQuestion, 3, undefined, controller.signal)
       setVariants(list)
     } catch (err) {
+      if (controller.signal.aborted) return
       setError(err instanceof Error ? err.message : '生成变式题失败，请检查网络或 API Key。')
     } finally {
+      if (abortRef.current === controller) abortRef.current = null
       setLoading(false)
     }
   }
@@ -67,16 +83,20 @@ export default function VariantPracticeModal({
     if (ok) setSpeakingId(id)
   }
 
-  function handleMarkMastered() {
+  async function handleMarkMastered() {
     if (alreadyMastered) return
-    upsertWrongQuestion({
-      ...wrongQuestion,
-      reviewStatus: '已掌握',
-      lastReviewedAt: new Date().toISOString(),
-    })
-    setAlreadyMastered(true)
-    setShowCelebration(true)
-    onMastered?.()
+    try {
+      await upsertWrongQuestion({
+        ...wrongQuestion,
+        reviewStatus: '已掌握',
+        lastReviewedAt: new Date().toISOString(),
+      })
+      setAlreadyMastered(true)
+      setShowCelebration(true)
+      onMastered?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '标记已掌握失败，请重试。')
+    }
   }
 
   return (
@@ -90,7 +110,10 @@ export default function VariantPracticeModal({
 
       <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4"
-        onClick={onClose}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="variant-practice-title"
+        onClick={handleClose}
       >
         <div
           className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
@@ -103,7 +126,9 @@ export default function VariantPracticeModal({
                 🎯
               </span>
               <div>
-                <h3 className="text-xs sm:text-sm font-bold text-[#243026]">举一反三 · 练同类题</h3>
+                <h3 id="variant-practice-title" className="text-xs sm:text-sm font-bold text-[#243026]">
+                  举一反三 · 练同类题
+                </h3>
                 <p className="text-[11px] text-[#66756c]">
                   针对【{wrongQuestion.knowledgePoint}】生成 3 道变式题
                 </p>
@@ -111,8 +136,9 @@ export default function VariantPracticeModal({
             </div>
             <button
               type="button"
+              aria-label="关闭变式练习"
               className="text-[#66756c] hover:text-[#243026] text-base px-2"
-              onClick={onClose}
+              onClick={handleClose}
             >
               ✕
             </button>
@@ -133,6 +159,13 @@ export default function VariantPracticeModal({
               <div className="flex flex-col items-center justify-center py-12 text-[#66756c] space-y-2">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#2f5d50] border-t-transparent" />
                 <p className="text-xs font-medium">AI 正在精心生成变式练习题，请稍候…</p>
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="rounded-lg border border-[#d9d2c3] px-3 py-1 text-xs font-semibold text-[#66756c]"
+                >
+                  取消
+                </button>
               </div>
             ) : error ? (
               <div className="rounded-xl bg-[#fee2e2] p-3 text-xs text-[#991b1b]">

@@ -45,15 +45,33 @@ export async function fileToCompressedDataUrl(file: File): Promise<{
   context.drawImage(bitmap, 0, 0, width, height)
   bitmap.close()
 
-  const mime = file.type === 'image/png' && originalBytes < MAX_BYTES ? 'image/png' : 'image/jpeg'
-  const dataUrl = canvas.toDataURL(mime, JPEG_QUALITY)
-  const resultBytes = Math.ceil((dataUrl.length * 3) / 4)
+  let mime = file.type === 'image/png' && originalBytes < MAX_BYTES ? 'image/png' : 'image/jpeg'
+  let quality = JPEG_QUALITY
+  let dataUrl = canvas.toDataURL(mime, quality)
+  let resultBytes = estimateDataUrlBytes(dataUrl)
+
+  if (mime === 'image/png' && resultBytes > MAX_BYTES) {
+    mime = 'image/jpeg'
+    dataUrl = canvas.toDataURL(mime, quality)
+    resultBytes = estimateDataUrlBytes(dataUrl)
+  }
+
+  while (mime === 'image/jpeg' && resultBytes > MAX_BYTES && quality > 0.52) {
+    quality = Math.max(0.52, quality - 0.1)
+    dataUrl = canvas.toDataURL(mime, quality)
+    resultBytes = estimateDataUrlBytes(dataUrl)
+  }
+
   return {
     dataUrl,
-    compressed: scale < 1 || resultBytes < originalBytes,
+    compressed: scale < 1 || resultBytes < originalBytes || mime !== file.type,
     originalBytes,
     resultBytes,
   }
+}
+
+export function estimateDataUrlBytes(dataUrl: string): number {
+  return Math.ceil((dataUrl.length * 3) / 4)
 }
 
 export function dataUrlToBase64(dataUrl: string): { mime: string; base64: string } {

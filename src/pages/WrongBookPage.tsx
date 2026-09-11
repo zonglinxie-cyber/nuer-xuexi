@@ -11,6 +11,7 @@ import { formatDateTime } from '../utils/format'
 import { getEbbinghausStatus } from '../utils/ebbinghaus'
 
 const statuses: Array<ReviewStatus | '全部' | '今日待复习'> = ['全部', '今日待复习', '未复习', '已复习', '已掌握']
+const PAGE_SIZE = 24
 
 export default function WrongBookPage() {
   const [searchParams] = useSearchParams()
@@ -20,6 +21,8 @@ export default function WrongBookPage() {
   const [status, setStatus] = useState<ReviewStatus | '全部' | '今日待复习'>('全部')
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [selectedVariantQuestion, setSelectedVariantQuestion] = useState<WrongQuestion | null>(null)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const items = loadWrongQuestions()
 
   useEffect(() => {
     if (searchParams.get('filter') === 'ebbinghaus') {
@@ -27,7 +30,6 @@ export default function WrongBookPage() {
     }
   }, [searchParams])
 
-  const items = loadWrongQuestions()
   const scopedItems = useMemo(
     () => items.filter((item) => (subjectFilter === '全部' ? true : parseSubjectId(item.subject) === subjectFilter)),
     [items, subjectFilter],
@@ -64,6 +66,12 @@ export default function WrongBookPage() {
         return hay.toLowerCase().includes(keyword.trim().toLowerCase())
       })
   }, [items, keyword, knowledge, status, subjectFilter])
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [keyword, knowledge, status, subjectFilter])
+
+  const paged = filtered.slice(0, visibleCount)
 
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -261,7 +269,7 @@ export default function WrongBookPage() {
         </div>
       ) : (
         <div className="space-y-2.5">
-          {filtered.map((item) => (
+          {paged.map((item) => (
             <div
               key={item.id}
               className="rounded-2xl bg-white p-3.5 sm:p-4 shadow-xs border border-[#ece6d8] transition-all hover:shadow-sm"
@@ -333,6 +341,15 @@ export default function WrongBookPage() {
               </div>
             </div>
           ))}
+          {visibleCount < filtered.length && (
+            <button
+              type="button"
+              className="w-full rounded-xl border border-[#d9d2c3] bg-white py-2 text-xs font-bold text-[#2f5d50]"
+              onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+            >
+              加载更多（还有 {filtered.length - visibleCount} 题）
+            </button>
+          )}
         </div>
       )}
     </div>

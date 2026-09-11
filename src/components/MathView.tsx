@@ -42,6 +42,8 @@ function renderMathSegment(segment: string, isBlock: boolean): string {
     return katex.renderToString(trimmed, {
       displayMode: isBlock,
       throwOnError: false,
+      trust: false,
+      strict: 'ignore',
     })
   } catch {
     const beautified = escapeHtml(fallbackMathBeautify(trimmed))

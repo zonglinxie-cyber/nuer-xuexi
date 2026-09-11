@@ -19,8 +19,12 @@ export function getEbbinghausStatus(question: WrongQuestion): EbbinghausStatus {
 
   const now = Date.now()
   const saved = new Date(question.savedAt).getTime()
-  const lastReviewed = question.lastReviewedAt ? new Date(question.lastReviewedAt).getTime() : 0
-  
+  if (!Number.isFinite(saved)) {
+    return { isDue: false, nextDueDays: 0 }
+  }
+  const reviewedAt = question.lastReviewedAt ? new Date(question.lastReviewedAt).getTime() : 0
+  const lastReviewed = Number.isFinite(reviewedAt) ? reviewedAt : 0
+
   const curveDays = [1, 2, 4, 7, 15]
   
   let isDue = false

@@ -21,6 +21,7 @@ export default function ResultEditor({
   onMetaChange,
   subject,
   onRecheck,
+  onCancelRecheck,
   rechecking,
 }: {
   result: RecognitionResult
@@ -37,6 +38,7 @@ export default function ResultEditor({
   }) => void
   subject: SubjectId
   onRecheck?: () => void
+  onCancelRecheck?: () => void
   rechecking?: boolean
 }) {
   const isWrongOrPartial =
@@ -59,6 +61,7 @@ export default function ResultEditor({
               <button
                 key={item.label}
                 type="button"
+                aria-pressed={isSelected}
                 className={`rounded-xl border py-1.5 px-1 sm:py-2 sm:px-2 text-xs sm:text-sm font-bold transition-all text-center ${item.color} ${
                   isSelected
                     ? 'ring-2 ring-offset-1 ring-[#2f5d50] shadow-xs'
@@ -115,14 +118,25 @@ export default function ResultEditor({
           <div className="text-[11px] text-amber-900 leading-snug">
             ✏️ <strong>手动校对提示</strong>：若 OCR 识别题目或作答有误，修改上方文字后点击右侧按钮，AI 将根据修改内容<strong>重新批改并同步更新思路讲解</strong>。
           </div>
-          <button
-            type="button"
-            disabled={rechecking || !result.recognized_text.trim()}
-            onClick={onRecheck}
-            className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#2f5d50] hover:bg-[#254b40] text-white px-3.5 py-2 text-xs font-bold shadow-xs disabled:opacity-50 transition-colors"
-          >
-            {rechecking ? '🔄 正在同步更新…' : '✨ 重新批改并同步解析'}
-          </button>
+          <div className="flex shrink-0 gap-1.5">
+            <button
+              type="button"
+              disabled={rechecking || !result.recognized_text.trim()}
+              onClick={onRecheck}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#2f5d50] hover:bg-[#254b40] text-white px-3.5 py-2 text-xs font-bold shadow-xs disabled:opacity-50 transition-colors"
+            >
+              {rechecking ? '🔄 正在同步更新…' : '✨ 重新批改并同步解析'}
+            </button>
+            {rechecking && onCancelRecheck && (
+              <button
+                type="button"
+                onClick={onCancelRecheck}
+                className="rounded-xl border border-[#9a6b4a] px-3 py-2 text-xs font-bold text-[#9a6b4a]"
+              >
+                取消
+              </button>
+            )}
+          </div>
         </div>
       )}
 
